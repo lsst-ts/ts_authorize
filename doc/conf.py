@@ -8,6 +8,8 @@ import lsst.ts.authorize
 
 
 _g = globals()
-_g.update(build_package_configs(
-    project_name='ts_authorize',
-    version=lsst.ts.authorize.__version__))
+_g.update(
+    build_package_configs(
+        project_name="ts_authorize", version=lsst.ts.authorize.__version__
+    )
+)
