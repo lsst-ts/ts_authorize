@@ -2,6 +2,7 @@
 config.log
 .sconf_temp
 *.pyc
+ospl-*.log
 
 # Built by sconsUtils
 version.py
