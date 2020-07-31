@@ -34,6 +34,52 @@ from lsst.ts import authorize
 STD_TIMEOUT = 60
 
 
+class MinimalTestCsc(salobj.BaseCsc):
+    """A mimial "Test" CSC that is not configurable.
+
+    By being non-configurable it simplifies the conda build.
+    """
+
+    def __init__(
+        self,
+        index,
+        config_dir=None,
+        initial_state=salobj.State.STANDBY,
+        simulation_mode=0,
+    ):
+        super().__init__(
+            name="Test",
+            index=index,
+            initial_state=initial_state,
+            simulation_mode=simulation_mode,
+        )
+
+    def do_setArrays(self, data):
+        """Execute the setArrays command."""
+        raise NotImplementedError()
+
+    def do_setScalars(self, data):
+        """Execute the setScalars command."""
+        raise NotImplementedError()
+
+    def do_fault(self, data):
+        """Execute the fault command.
+
+        Change the summary state to State.FAULT
+        """
+        self.log.warning("executing the fault command")
+        self.fault(code=1, report="executing the fault command")
+
+    async def do_wait(self, data):
+        """Execute the wait command.
+
+        Wait for the specified time and then acknowledge the command
+        using the specified ack code.
+        """
+        self.assert_enabled()
+        await asyncio.sleep(data.duration)
+
+
 class AuthorizeTestCase(asynctest.TestCase):
     def setUp(self):
         salobj.set_random_lsst_dds_domain()
@@ -62,7 +108,7 @@ class AuthorizeTestCase(asynctest.TestCase):
     async def test_request_authorization_success(self):
         index1 = 5
         index2 = 52
-        async with salobj.TestCsc(index=index1) as csc1, salobj.TestCsc(
+        async with MinimalTestCsc(index=index1) as csc1, MinimalTestCsc(
             index=index2
         ) as csc2, authorize.Authorize() as auth, salobj.Remote(
             domain=auth.salinfo.domain, name="Authorize", index=None
