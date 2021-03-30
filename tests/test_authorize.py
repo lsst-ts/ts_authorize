@@ -24,8 +24,6 @@ import logging
 import shutil
 import unittest
 
-import asynctest
-
 from lsst.ts import salobj
 from lsst.ts import authorize
 
@@ -39,6 +37,9 @@ class MinimalTestCsc(salobj.BaseCsc):
 
     By being non-configurable it simplifies the conda build.
     """
+
+    version = "?"
+    valid_simulation_modes = [0]
 
     def __init__(
         self,
@@ -80,9 +81,9 @@ class MinimalTestCsc(salobj.BaseCsc):
         await asyncio.sleep(data.duration)
 
 
-class AuthorizeTestCase(asynctest.TestCase):
+class AuthorizeTestCase(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
-        salobj.set_random_lsst_dds_domain()
+        salobj.set_random_lsst_dds_partition_prefix()
 
     async def test_bin_script(self):
         exe_name = "run_authorization_service.py"

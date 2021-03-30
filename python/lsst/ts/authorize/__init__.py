@@ -19,10 +19,10 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from .utils import *
-from .authorize import *
-
 try:
     from .version import *
 except ImportError:
     __version__ = "?"
+
+from .utils import *
+from .authorize import *
