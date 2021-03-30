@@ -13,6 +13,7 @@ v0.2.1
 * Use pre-commit instead of a custom pre-commit hook; see the README.md for instructions.
 * Format the code with black 20.8b1.
 * Modernize the code to eliminate several warnings.
+* Modernize doc/conf.py for documenteer 0.6.
 
 Requirements:
 
