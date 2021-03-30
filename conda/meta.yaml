@@ -9,41 +9,38 @@ source:
 build:
   script: python -m pip install --no-deps --ignore-installed .
   script_env:
-      - PATH
-      - PYTHONPATH
-      - LD_LIBRARY_PATH
-      - OSPL_HOME
-      - PYTHON_BUILD_VERSION
-      - PYTHON_BUILD_LOCATION
-      - LSST_DDS_DOMAIN
+    - PATH
+    - PYTHONPATH
+    - LD_LIBRARY_PATH
+    - OSPL_HOME
+    - PYTHON_BUILD_VERSION
+    - PYTHON_BUILD_LOCATION
+    - LSST_DDS_DOMAIN
 
 test:
   requires:
-      - asynctest
-      - black
-      - pytest
-      - pytest-flake8
-      - pytest-cov
-      - ts-idl
-      - ts-salobj >= 6
+    - ts-conda-build =0.3
+    - ts-dds
+    - ts-idl {{ idl_version }}
+    - ts-salobj {{ salobj_version }}
   source_files:
-      - python
-      - bin
-      - tests
-      - setup.cfg
+    - python
+    - bin
+    - tests
+    - setup.cfg
   commands:
-      - py.test
+    - py.test
 
 requirements:
   host:
-      - python
-      - pip
-      - setuptools_scm
-      - setuptools
-      - pytest-runner
+    - python
+    - pip
+    - setuptools_scm
+    - setuptools
+    - pytest-runner
   run:
-      - python
-      - setuptools
-      - setuptools_scm
-      - ts-idl
-      - ts-salobj >= 6
+    - python
+    - setuptools
+    - setuptools_scm
+    - ts-idl
+    - ts-salobj
