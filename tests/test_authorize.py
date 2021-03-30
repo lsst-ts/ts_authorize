@@ -24,8 +24,6 @@ import logging
 import shutil
 import unittest
 
-import asynctest
-
 from lsst.ts import salobj
 from lsst.ts import authorize
 
@@ -80,7 +78,7 @@ class MinimalTestCsc(salobj.BaseCsc):
         await asyncio.sleep(data.duration)
 
 
-class AuthorizeTestCase(asynctest.TestCase):
+class AuthorizeTestCase(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         salobj.set_random_lsst_dds_domain()
 
