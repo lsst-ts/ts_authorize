@@ -73,8 +73,7 @@ async def main():
         prefix = ""
 
     def replace_me(user_host):
-        """Replace "me" with the value of ``me``.
-        """
+        """Replace "me" with the value of ``me``."""
         if user_host == "me":
             return me
         return user_host
