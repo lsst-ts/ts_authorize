@@ -32,6 +32,8 @@ HEARTBEAT_INTERVAL = 1
 
 
 class Authorize(salobj.Controller):
+    """Simple service to support requestAuthorization commands."""
+
     def __init__(self):
         super().__init__(name="Authorize", index=None, do_callbacks=True)
         # Allow anyone to issue the requestAuthorization command.
@@ -94,6 +96,6 @@ class Authorize(salobj.Controller):
                     )
                 self.log.info(f"Set authList for {csc_name_index}")
             except salobj.AckError as e:
-                self.log.warn(
+                self.log.warning(
                     f"Failed to set authList for {csc_name_index}: {e.args[0]}"
                 )
