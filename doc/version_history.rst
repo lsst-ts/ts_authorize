@@ -6,6 +6,17 @@
 Version History
 ###############
 
+v0.3.0
+------
+
+* Convert Authorize to a CSC full featured configurable CSC and prepare it to interface with LOVE.
+
+Requirements:
+
+* ts_salobj >6
+* ts_xml >10.1
+* IDL files for all systems.
+
 v0.2.1
 ------
 
