@@ -1,6 +1,6 @@
 # This file is part of ts_authorize.
 #
-# Developed for the LSST Data Management System.
+# Developed for Vera C. Rubin Observatory Telescope and Site Systems.
 # This product includes software developed by the LSST Project
 # (https://www.lsst.org).
 # See the COPYRIGHT file at the top-level directory of this distribution
@@ -19,37 +19,85 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-import asyncio
-
 from lsst.ts import salobj
+
+from . import __version__
 from . import utils
+from .config_schema import CONFIG_SCHEMA
 
-# Timeout for authorization command (seconds)
-AUTH_TIMEOUT = 5
-
-# Heartbeat interval (seconds)
-HEARTBEAT_INTERVAL = 1
+# Timeout for sending setAuthList command (seconds)
+TIMEOUT_SET_AUTH_LIST = 5
 
 
-class Authorize(salobj.Controller):
-    """Simple service to support requestAuthorization commands."""
+class Authorize(salobj.ConfigurableCsc):
+    """Manage authorization requests.
 
-    def __init__(self):
-        super().__init__(name="Authorize", index=None, do_callbacks=True)
-        # Allow anyone to issue the requestAuthorization command.
+    The CSC receives requests for authorization from users and sets the
+    authList on the required CSCs.
+
+    A future update will allow the CSC to interact with LOVE to validate a user
+    request before setting the authList. It will also receive requests from
+    LOVE to set the authList.
+
+    Parameters
+    ----------
+    config_dir : `str` (optional)
+        Configuration directory.
+    initial_state : `salobj.State` (optional)
+        Initial state of the CSC.
+    simulation_mode : `int` (optional)
+        Initial simulation mode.
+    components_to_handle : `set` or `str` (optional)
+        Name of the components to handle authorization for. By default, handle
+        all components with available IDL files.
+    """
+
+    valid_simulation_modes = (0,)
+    version = __version__
+    enable_cmdline_state = True
+
+    def __init__(
+        self, config_dir=None, initial_state=salobj.State.STANDBY, settings_to_apply=""
+    ) -> None:
+        super().__init__(
+            name="Authorize",
+            index=0,
+            config_schema=CONFIG_SCHEMA,
+            config_dir=config_dir,
+            initial_state=initial_state,
+            settings_to_apply=settings_to_apply,
+        )
+
+        # Make sure the requestAuthorization command does not require
+        # authorization.
         self.cmd_requestAuthorization.authorize = False
-        self.heartbeat_interval = HEARTBEAT_INTERVAL
-        self.heartbeat_task = asyncio.create_task(self.heartbeat_loop())
 
-    async def heartbeat_loop(self):
-        try:
-            while True:
-                self.evt_heartbeat.put()
-                await asyncio.sleep(self.heartbeat_interval)
-        except asyncio.CancelledError:
-            pass
-        except Exception:
-            self.log.exception("Heartbeat loop failed")
+        self.config = None
+
+    async def configure(self, config) -> None:
+        """Configure CSC.
+
+        Parameters
+        ----------
+        config : `types.SimpleNamespace`
+
+        Raises
+        ------
+        NotImplementedError
+            If `config.auto_authorization == False`.
+        """
+
+        # TODO: Implement validation with LOVE system.
+        if not config.auto_authorization:
+            raise NotImplementedError(
+                "Running in non-automatic authorization not implement yet."
+            )
+
+        self.config = config
+
+    @staticmethod
+    def get_config_pkg():
+        return "ts_config_ocs"
 
     async def do_requestAuthorization(self, data):
         """Implement the requestAuthorization command.
@@ -59,13 +107,72 @@ class Authorize(salobj.Controller):
         data : ``cmd_requestAuthorization.DataType``
             Command data.
         """
+
+        self.assert_enabled()
+
+        self.cmd_requestAuthorization.ack_in_progress(
+            data, timeout=self.config.timeout_request_authorization
+        )
+
+        cscs_to_command = await self.validate_request(data=data)
+
+        cscs_failed_to_set_auth_list = set()
+        for csc_name_index in cscs_to_command:
+            csc_name, csc_index = salobj.name_to_name_index(csc_name_index)
+            try:
+                async with salobj.Remote(
+                    domain=self.salinfo.domain,
+                    name=csc_name,
+                    index=csc_index,
+                    include=[],
+                ) as remote:
+                    await remote.cmd_setAuthList.set_start(
+                        authorizedUsers=data.authorizedUsers,
+                        nonAuthorizedCSCs=data.nonAuthorizedCSCs,
+                        timeout=TIMEOUT_SET_AUTH_LIST,
+                    )
+                self.log.info(f"Set authList for {csc_name_index}")
+            except salobj.AckError as e:
+                cscs_failed_to_set_auth_list.update({csc_name_index})
+                self.log.warning(
+                    f"Failed to set authList for {csc_name_index}: {e.args[0]}"
+                )
+
+        if len(cscs_failed_to_set_auth_list) > 0:
+            raise RuntimeError(
+                f"Failed to set authList for the following CSCs: {cscs_failed_to_set_auth_list}. "
+                "The following CSCs were successfully updated: "
+                f"{cscs_to_command-cscs_failed_to_set_auth_list}"
+            )
+
+    async def validate_request(self, data):
+        """Validate a requestAuthorization command by checking the input
+        integrity and authenticating the request with LOVE.
+
+        Parameters
+        ----------
+        data : ``cmd_requestAuthorization.DataType``
+            Command data.
+
+        Returns
+        -------
+        cscs_to_command : `list` of `str`
+            List of strings with name:index of the CSCs to send setAuthList
+            commands to.
+
+        Raises
+        ------
+        salobj.ExpectedError
+            If no csc is specified.
+        """
+
         # Check values
-        cscs_to_command = [val.strip() for val in data.cscsToChange.split(",")]
+        cscs_to_command = {val.strip() for val in data.cscsToChange.split(",")}
         if not cscs_to_command:
-            self.log.warning(
+            raise salobj.ExpectedError(
                 "No CSCs specified in cscsToChange; command has no effect."
             )
-            return
+
         for csc in cscs_to_command:
             utils.check_csc(csc)
 
@@ -83,19 +190,4 @@ class Authorize(salobj.Controller):
             for csc in nonauth_cscs.split(","):
                 utils.check_csc(csc.strip())
 
-        for csc_name_index in cscs_to_command:
-            csc, index = salobj.name_to_name_index(csc_name_index)
-            try:
-                async with salobj.Remote(
-                    domain=self.salinfo.domain, name=csc, index=index, include=[]
-                ) as remote:
-                    await remote.cmd_setAuthList.set_start(
-                        authorizedUsers=data.authorizedUsers,
-                        nonAuthorizedCSCs=data.nonAuthorizedCSCs,
-                        timeout=AUTH_TIMEOUT,
-                    )
-                self.log.info(f"Set authList for {csc_name_index}")
-            except salobj.AckError as e:
-                self.log.warning(
-                    f"Failed to set authList for {csc_name_index}: {e.args[0]}"
-                )
+        return cscs_to_command

@@ -20,17 +20,9 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-import argparse
 import asyncio
 
-from lsst.ts import authorize
+from lsst.ts.authorize import Authorize
 
 
-async def main():
-    parser = argparse.ArgumentParser("Run the authorization service.")
-    parser.parse_args()
-    service = authorize.Authorize()
-    await service.done_task
-
-
-asyncio.run(main())
+asyncio.run(Authorize.amain(index=None))
