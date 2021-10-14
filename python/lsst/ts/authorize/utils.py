@@ -31,7 +31,15 @@ USER_HOST_RE = re.compile(r"^[a-zA-Z][-._A-Za-z0-9]*@[a-zA-Z0-9][-._A-Za-z0-9]*$
 def check_csc(csc):
     """Check a csc name[:index] value.
 
-    Return the value if valid.
+    Returns
+    -------
+    csc : str
+        The ``csc`` argument, if valid.
+
+    Raises
+    ------
+    ValueError
+        If ``csc`` is not valid.
     """
     if CSC_NAME_INDEX_RE.match(csc):
         return csc
@@ -41,7 +49,15 @@ def check_csc(csc):
 def check_user_host(user_host):
     """Check a user@host value.
 
-    Return the value if valid, replaced with ``me`` if appropriate.
+    Returns
+    -------
+    user_host : str
+        The ``user_host`` argument, if valid.
+
+    Raises
+    ------
+    ValueError
+        If ``user_host`` is not valid.
     """
     if USER_HOST_RE.match(user_host):
         return user_host

@@ -1,6 +1,6 @@
 # This file is part of ts_authorize.
 #
-# Developed for the LSST Telescope and Site Systems.
+# Developed for Vera C. Rubin Observatory Telescope and Site Systems.
 # This product includes software developed by the LSST Project
 # (https://www.lsst.org).
 # See the COPYRIGHT file at the top-level directory of this distribution
@@ -81,11 +81,45 @@ class MinimalTestCsc(salobj.BaseCsc):
         await asyncio.sleep(data.duration)
 
 
-class AuthorizeTestCase(unittest.IsolatedAsyncioTestCase):
-    def setUp(self):
-        salobj.set_random_lsst_dds_partition_prefix()
+class AuthorizeTestCase(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.log = logging.getLogger("AuthorizeTestCase")
+
+        return super().setUpClass()
+
+    def basic_make_csc(self, initial_state, config_dir, **kwargs):
+        return authorize.Authorize(
+            initial_state=initial_state,
+            config_dir=config_dir,
+        )
+
+    async def test_standard_state_transitions(self):
+        """Test standard CSC state transitions.
+
+        The initial state is STANDBY.
+        The standard commands and associated state transitions are:
+
+        * start: STANDBY to DISABLED
+        * enable: DISABLED to ENABLED
+
+        * disable: ENABLED to DISABLED
+        * standby: DISABLED to STANDBY
+        * exitControl: STANDBY, FAULT to OFFLINE (quit)
+        """
+
+        async with self.make_csc(
+            config_dir=None,
+            initial_state=salobj.State.STANDBY,
+        ):
+            await self.check_standard_state_transitions(
+                enabled_commands=("requestAuthorization",)
+            )
 
     async def test_bin_script(self):
+
+        salobj.set_random_lsst_dds_partition_prefix()
+
         exe_name = "run_authorization_service.py"
         exe_path = shutil.which(exe_name)
         if exe_path is None:
@@ -109,12 +143,11 @@ class AuthorizeTestCase(unittest.IsolatedAsyncioTestCase):
     async def test_request_authorization_success(self):
         index1 = 5
         index2 = 52
-        async with MinimalTestCsc(index=index1) as csc1, MinimalTestCsc(
-            index=index2
-        ) as csc2, authorize.Authorize() as auth, salobj.Remote(
-            domain=auth.salinfo.domain, name="Authorize", index=None
-        ) as remote:
-            await remote.evt_logLevel.aget(timeout=STD_TIMEOUT)
+        async with self.make_csc(
+            config_dir=None,
+            initial_state=salobj.State.ENABLED,
+        ), MinimalTestCsc(index=index1) as csc1, MinimalTestCsc(index=index2) as csc2:
+            await self.remote.evt_logLevel.aget(timeout=STD_TIMEOUT)
             self.assertEqual(csc1.salinfo.authorized_users, set())
             self.assertEqual(csc1.salinfo.non_authorized_cscs, set())
             self.assertEqual(csc2.salinfo.authorized_users, set())
@@ -123,7 +156,7 @@ class AuthorizeTestCase(unittest.IsolatedAsyncioTestCase):
             # Change the first Test CSC
             desired_users = ("sal@purview", "woof@123.456")
             desired_cscs = ("Foo", "Bar:1", "XKCD:47")
-            await remote.cmd_requestAuthorization.set_start(
+            await self.remote.cmd_requestAuthorization.set_start(
                 cscsToChange=f"Test:{index1}",
                 authorizedUsers=", ".join(desired_users),
                 nonAuthorizedCSCs=", ".join(desired_cscs),
@@ -138,39 +171,49 @@ class AuthorizeTestCase(unittest.IsolatedAsyncioTestCase):
             desired_users = ("meow@validate", "v122s@123")
             desired_cscs = ("AT", "seisen:22")
             # Include a CSC that does not exist. Authorize will try to
-            # change it, that will time out, but the main command will
-            # still succeed.
-            await remote.cmd_requestAuthorization.set_start(
-                cscsToChange=f"Test:{index1}, Test:{index2}, Test:999",
-                authorizedUsers=", ".join(desired_users),
-                nonAuthorizedCSCs=", ".join(desired_cscs),
-                timeout=60,
-            )
+            # change it, that will time out, command will fail but other CSCs
+            # will be set.
+            with salobj.assertRaisesAckError():
+                await self.remote.cmd_requestAuthorization.set_start(
+                    cscsToChange=f"Test:{index1}, Test:999, Test:{index2}",
+                    authorizedUsers=", ".join(desired_users),
+                    nonAuthorizedCSCs=", ".join(desired_cscs),
+                    timeout=60,
+                )
             self.assertEqual(csc1.salinfo.authorized_users, set(desired_users))
             self.assertEqual(csc1.salinfo.non_authorized_cscs, set(desired_cscs))
             self.assertEqual(csc2.salinfo.authorized_users, set(desired_users))
             self.assertEqual(csc2.salinfo.non_authorized_cscs, set(desired_cscs))
 
     async def test_request_authorization_errors(self):
-        async with authorize.Authorize() as auth, salobj.Remote(
-            domain=auth.salinfo.domain, name="Authorize", index=None
-        ) as remote:
+        async with self.make_csc(
+            config_dir=None,
+            initial_state=salobj.State.ENABLED,
+        ):
             with salobj.assertRaisesAckError():
-                await remote.cmd_requestAuthorization.set_start(
+                # Empty cscsToChange
+                await self.remote.cmd_requestAuthorization.set_start(
+                    cscsToChange="",
+                    authorizedUsers="a@b",
+                    nonAuthorizedCSCs="a",
+                    timeout=STD_TIMEOUT,
+                )
+            with salobj.assertRaisesAckError():
+                await self.remote.cmd_requestAuthorization.set_start(
                     cscsToChange="_bad_csc_name",
                     authorizedUsers="a@b",
                     nonAuthorizedCSCs="a",
                     timeout=STD_TIMEOUT,
                 )
             with salobj.assertRaisesAckError():
-                await remote.cmd_requestAuthorization.set_start(
+                await self.remote.cmd_requestAuthorization.set_start(
                     cscsToChange="Test:2",
                     authorizedUsers="_bad_username@any",
                     nonAuthorizedCSCs="a",
                     timeout=STD_TIMEOUT,
                 )
             with salobj.assertRaisesAckError():
-                await remote.cmd_requestAuthorization.set_start(
+                await self.remote.cmd_requestAuthorization.set_start(
                     cscsToChange="Test:2",
                     authorizedUsers="some@any",
                     nonAuthorizedCSCs="_badCscName",

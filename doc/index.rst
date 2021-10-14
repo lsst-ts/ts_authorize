@@ -6,7 +6,11 @@
 lsst.ts.authorize
 #################
 
-A service to handle requests for changes to the authorization list in one or more CSCs.
+A CSC that manages the authorization list of the system.
+
+The Authorize CSC monitors the authorization state of the system and manages requests to authorize users or unauthorize CSCs.
+
+Future updates of the CSC will include an interface with the LOVE system to allow operators to manage those requests and to edit the authorization list.
 
 .. _lsst.ts.authorize-using:
 
