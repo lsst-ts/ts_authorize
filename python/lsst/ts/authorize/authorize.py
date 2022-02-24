@@ -57,7 +57,7 @@ class Authorize(salobj.ConfigurableCsc):
     enable_cmdline_state = True
 
     def __init__(
-        self, config_dir=None, initial_state=salobj.State.STANDBY, settings_to_apply=""
+        self, config_dir=None, initial_state=salobj.State.STANDBY, override=""
     ) -> None:
         super().__init__(
             name="Authorize",
@@ -65,7 +65,7 @@ class Authorize(salobj.ConfigurableCsc):
             config_schema=CONFIG_SCHEMA,
             config_dir=config_dir,
             initial_state=initial_state,
-            settings_to_apply=settings_to_apply,
+            override=override,
         )
 
         # Make sure the requestAuthorization command does not require
@@ -110,7 +110,7 @@ class Authorize(salobj.ConfigurableCsc):
 
         self.assert_enabled()
 
-        self.cmd_requestAuthorization.ack_in_progress(
+        await self.cmd_requestAuthorization.ack_in_progress(
             data, timeout=self.config.timeout_request_authorization
         )
 
