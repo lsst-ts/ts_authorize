@@ -28,8 +28,8 @@ CONFIG_SCHEMA = yaml.safe_load(
 $schema: http://json-schema.org/draft-07/schema#
 $id: https://github.com/lsst-ts/ts_love_csc/blob/master/python/lsst/ts/love/csc/config_schema.py
 # title must end with one or more spaces followed by the schema version, which must begin with "v"
-title: LOVE v1
-description: Schema for LOVE configuration files
+title: Authorize v2
+description: Schema for Authorize configuration files
 type: object
 properties:
     host:

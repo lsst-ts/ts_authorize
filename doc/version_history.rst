@@ -6,6 +6,18 @@
 Version History
 ###############
 
+v0.4.0
+------
+
+* Update for ts_salobj v7, which is required.
+  This also requires ts_xml 11.
+* Jenkinsfile: update to pull the current salobj.
+
+Requirements:
+
+* ts_salobj 7
+* IDL files for all subsystems to authorize, built with ts_xml 11
+
 v0.3.0
 ------
 

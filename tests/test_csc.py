@@ -20,8 +20,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import asyncio
-import logging
-import shutil
+import pathlib
 import unittest
 
 from lsst.ts import salobj
@@ -30,6 +29,8 @@ from lsst.ts import authorize
 # Timeout for a long operation (sec), including waiting for Authorize
 # to time out while trying to change a CSC.
 STD_TIMEOUT = 60
+
+TEST_CONFIG_DIR = pathlib.Path(__file__).parent / "data" / "config"
 
 
 class MinimalTestCsc(salobj.BaseCsc):
@@ -55,21 +56,21 @@ class MinimalTestCsc(salobj.BaseCsc):
             simulation_mode=simulation_mode,
         )
 
-    def do_setArrays(self, data):
+    async def do_setArrays(self, data):
         """Execute the setArrays command."""
         raise NotImplementedError()
 
-    def do_setScalars(self, data):
+    async def do_setScalars(self, data):
         """Execute the setScalars command."""
         raise NotImplementedError()
 
-    def do_fault(self, data):
+    async def do_fault(self, data):
         """Execute the fault command.
 
         Change the summary state to State.FAULT
         """
         self.log.warning("executing the fault command")
-        self.fault(code=1, report="executing the fault command")
+        await self.fault(code=1, report="executing the fault command")
 
     async def do_wait(self, data):
         """Execute the wait command.
@@ -82,12 +83,6 @@ class MinimalTestCsc(salobj.BaseCsc):
 
 
 class AuthorizeTestCase(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTestCase):
-    @classmethod
-    def setUpClass(cls) -> None:
-        cls.log = logging.getLogger("AuthorizeTestCase")
-
-        return super().setUpClass()
-
     def basic_make_csc(self, initial_state, config_dir, **kwargs):
         return authorize.Authorize(
             initial_state=initial_state,
@@ -109,7 +104,7 @@ class AuthorizeTestCase(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTestCase
         """
 
         async with self.make_csc(
-            config_dir=None,
+            config_dir=TEST_CONFIG_DIR,
             initial_state=salobj.State.STANDBY,
         ):
             await self.check_standard_state_transitions(
@@ -117,34 +112,17 @@ class AuthorizeTestCase(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTestCase
             )
 
     async def test_bin_script(self):
-
-        salobj.set_random_lsst_dds_partition_prefix()
-
-        exe_name = "run_authorization_service.py"
-        exe_path = shutil.which(exe_name)
-        if exe_path is None:
-            self.fail(
-                f"Could not find bin script {exe_name}; did you setup or install this package?"
-            )
-
-        process = await asyncio.create_subprocess_exec(exe_name)
-        try:
-            async with salobj.Domain() as domain, salobj.Remote(
-                domain=domain, name="Authorize", index=None
-            ) as remote:
-                data = await remote.evt_logLevel.next(flush=False, timeout=STD_TIMEOUT)
-                self.assertEqual(data.level, logging.INFO)
-                await remote.evt_heartbeat.next(flush=False, timeout=STD_TIMEOUT)
-                await remote.evt_heartbeat.next(flush=False, timeout=STD_TIMEOUT)
-
-        finally:
-            process.terminate()
+        await self.check_bin_script(
+            name="Authorize",
+            index=None,
+            exe_name="run_authorize.py",
+        )
 
     async def test_request_authorization_success(self):
         index1 = 5
         index2 = 52
         async with self.make_csc(
-            config_dir=None,
+            config_dir=TEST_CONFIG_DIR,
             initial_state=salobj.State.ENABLED,
         ), MinimalTestCsc(index=index1) as csc1, MinimalTestCsc(index=index2) as csc2:
             await self.remote.evt_logLevel.aget(timeout=STD_TIMEOUT)
@@ -187,7 +165,7 @@ class AuthorizeTestCase(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTestCase
 
     async def test_request_authorization_errors(self):
         async with self.make_csc(
-            config_dir=None,
+            config_dir=TEST_CONFIG_DIR,
             initial_state=salobj.State.ENABLED,
         ):
             with salobj.assertRaisesAckError():

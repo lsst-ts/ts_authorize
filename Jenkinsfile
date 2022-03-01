@@ -56,6 +56,9 @@ pipeline {
                         cd ${env.SAL_USERS_HOME}/repos/ts_idl
                         ${env.SAL_USERS_HOME}/.checkout_repo.sh \${WORK_BRANCHES}
                         git pull
+                        cd ${env.SAL_USERS_HOME}/repos/ts_salobj
+                        ${env.SAL_USERS_HOME}/.checkout_repo.sh \${WORK_BRANCHES}
+                        git pull
                         make_idl_files.py Authorize Script Test
                     """
                 }
