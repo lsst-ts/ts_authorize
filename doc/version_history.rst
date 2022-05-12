@@ -6,6 +6,13 @@
 Version History
 ###############
 
+v0.4.1
+------
+
+* Update conda jenkins build script.
+* Update setup.py
+* Update conda recipe.
+
 v0.4.0
 ------
 
