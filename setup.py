@@ -21,7 +21,7 @@ setuptools.setup(
     package_dir={"": "python"},
     packages=setuptools.find_namespace_packages(where="python"),
     package_data={"": ["*.rst", "*.yaml"]},
-    scripts=["bin/request_authorization.py", "bin/run_authorization_service.py"],
+    scripts=["bin/request_authorization.py", "bin/run_authorize.py"],
     license="GPL",
     project_urls={
         "Bug Tracker": "https://jira.lsstcorp.org/secure/Dashboard.jspa",
