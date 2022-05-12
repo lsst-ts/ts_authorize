@@ -10,7 +10,7 @@ build:
   script: python -m pip install --no-deps --ignore-installed .
   script_env:
     - OSPL_HOME
-    - TS_CONFIG_OCS
+    - TS_CONFIG_OCS_DIR
 
 test:
   requires:
