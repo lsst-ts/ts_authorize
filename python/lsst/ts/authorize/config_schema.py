@@ -26,7 +26,7 @@ import yaml
 CONFIG_SCHEMA = yaml.safe_load(
     """
 $schema: http://json-schema.org/draft-07/schema#
-$id: https://github.com/lsst-ts/ts_love_csc/blob/master/python/lsst/ts/love/csc/config_schema.py
+$id: https://github.com/lsst-ts/ts_authorize/blob/develop/python/lsst/ts/authorize/config_schema.py
 # title must end with one or more spaces followed by the schema version, which must begin with "v"
 title: Authorize v2
 description: Schema for Authorize configuration files
@@ -45,14 +45,12 @@ properties:
         description: >-
             Timeout for waiting requests to change the authlist to be processed
             by operators.
-        default: 60.
     auto_authorization:
         type: boolean
         description: >-
-            Automatically aprove authorization requests? If true (default) all
-            requests are approved automatically. If false, a request to the
-            LOVE frontend is generated.
-        default: true
+            Automatically aprove authorization requests?
+            If true, all requests are approved automatically.
+            If false, a request to the LOVE frontend is generated.
 additionalProperties: false
 """
 )
