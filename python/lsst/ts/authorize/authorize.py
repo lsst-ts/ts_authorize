@@ -19,6 +19,8 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+import asyncio
+
 from lsst.ts import salobj
 
 from . import __version__
@@ -191,3 +193,7 @@ class Authorize(salobj.ConfigurableCsc):
                 utils.check_csc(csc.strip())
 
         return cscs_to_command
+
+
+def run_authorize():
+    asyncio.run(Authorize.amain(index=None))

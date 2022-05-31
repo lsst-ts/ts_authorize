@@ -1,37 +1,18 @@
-#!/usr/bin/env python
-# This file is part of ts_authorize.
-#
-# Developed for the LSST Telescope and Site Systems.
-# This product includes software developed by the LSST Project
-# (https://www.lsst.org).
-# See the COPYRIGHT file at the top-level directory of this distribution
-# for details of code ownership.
-#
-# This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
-#
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
-#
-# You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+__all__ = ["request_authorization"]
 
 import argparse
 import asyncio
 
+from .utils import check_csc, check_user_host
 from lsst.ts import salobj
-from lsst.ts import authorize
 
 
 def print_log_message(data):
     print(data.message)
 
 
-async def main():
+async def request_authorization_impl():
+    """Implementation of the request_authorization function."""
     parser = argparse.ArgumentParser(
         "Request authorization changes for one or more CSCs."
     )
@@ -79,22 +60,21 @@ async def main():
         return user_host
 
     try:
-        cscs_to_command_list = [authorize.check_csc(csc) for csc in args.cscs]
+        cscs_to_command_list = [check_csc(csc) for csc in args.cscs]
         cscs_to_command_str = ", ".join(cscs_to_command_list)
 
         if args.auth_users is None:
             auth_users_str = ""
         else:
             auth_users_list = [
-                authorize.check_user_host(replace_me(user_host))
-                for user_host in args.auth_users
+                check_user_host(replace_me(user_host)) for user_host in args.auth_users
             ]
             auth_users_str = prefix + ", ".join(auth_users_list)
 
         if args.nonauth_cscs is None:
             nonauth_cscs_str = ""
         else:
-            nonauth_cscs_list = [authorize.check_csc(csc) for csc in args.nonauth_cscs]
+            nonauth_cscs_list = [check_csc(csc) for csc in args.nonauth_cscs]
             nonauth_cscs_str = prefix + ", ".join(nonauth_cscs_list)
     except ValueError as e:
         parser.error(str(e))
@@ -115,4 +95,6 @@ async def main():
         )
 
 
-asyncio.run(main())
+def request_authorization():
+    """Request authorization."""
+    asyncio.run(request_authorization_impl())
