@@ -13,3 +13,5 @@ pytest_session.txt
 .hypothesis
 .pytest_cache
 .coverage
+
+.vscode
