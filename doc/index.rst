@@ -34,12 +34,12 @@ A future update of the CSC will send authorization requests to the LOVE system f
 User Guide
 ==========
 
-Start the authorization CSC using command-line script `run_authorization_service.py`.
+Start the authorization CSC using command-line script `run_authorization_service`.
 It takes no arguments.
 
 There are two ways to request authorization:
 
-* Use the command-line script `request_authorization.py`.
+* Use the command-line script `request_authorization`.
   Run with ``--help`` for details.
 
 * Issue the `requestAuthorization command <https://ts-xml.lsst.io/sal_interfaces/Authorize.html#requestauthorization>`_.
