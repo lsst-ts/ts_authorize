@@ -7,13 +7,11 @@ source:
   path: ../
 
 build:
+  noarch: generic
   script: python -m pip install --no-deps --ignore-installed .
   entry_points:
     - request_authorization = lsst.ts.authorize:request_authorization
     - run_authorize = lsst.ts.authorize:run_authorize
-  script_env:
-    - OSPL_HOME
-    - TS_CONFIG_OCS_DIR
 
 test:
   requires:

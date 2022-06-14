@@ -1,2 +1,2 @@
 @Library('JenkinsShared')_
-CondaPipeline(["ts_config_ocs"], "ts-authorize", "lsst.ts.authorize")
+CondaPipeline(["ts_config_ocs"], "ts-authorize", "lsst.ts.authorize", "noarch")
