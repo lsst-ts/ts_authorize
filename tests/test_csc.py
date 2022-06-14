@@ -115,7 +115,7 @@ class AuthorizeTestCase(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTestCase
         await self.check_bin_script(
             name="Authorize",
             index=None,
-            exe_name="run_authorize.py",
+            exe_name="run_authorize",
         )
 
     async def test_request_authorization_success(self):

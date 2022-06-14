@@ -2,7 +2,7 @@
 ts_authorize
 ############
 
-Handle authorization requests for SAL users.
+A CSC to handle authorization requests for SAL users at the Vera C. Rubin Observatory.
 
 `Documentation <https://ts-authorize.lsst.io>`_
 
