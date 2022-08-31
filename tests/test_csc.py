@@ -23,8 +23,7 @@ import asyncio
 import pathlib
 import unittest
 
-from lsst.ts import salobj
-from lsst.ts import authorize
+from lsst.ts import authorize, salobj
 
 # Timeout for a long operation (sec), including waiting for Authorize
 # to time out while trying to change a CSC.

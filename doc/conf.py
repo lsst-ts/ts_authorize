@@ -3,8 +3,8 @@
 This configuration only affects single-package Sphinx documentation builds.
 """
 
-from documenteer.conf.pipelinespkg import *  # type: ignore # noqa
 import lsst.ts.authorize  # noqa
+from documenteer.conf.pipelinespkg import *  # type: ignore # noqa
 
 project = "ts_authorize"
 html_theme_options["logotext"] = project  # noqa

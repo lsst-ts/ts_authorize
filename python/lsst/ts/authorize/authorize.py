@@ -23,8 +23,7 @@ import asyncio
 
 from lsst.ts import salobj
 
-from . import __version__
-from . import utils
+from . import __version__, utils
 from .config_schema import CONFIG_SCHEMA
 
 # Timeout for sending setAuthList command (seconds)

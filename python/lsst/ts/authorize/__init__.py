@@ -1,6 +1,6 @@
 # This file is part of ts_authorize.
 #
-# Developed for the LSST Data Management System.
+# Developed for Vera C. Rubin Observatory Telescope and Site Systems.
 # This product includes software developed by the LSST Project
 # (https://www.lsst.org).
 # See the COPYRIGHT file at the top-level directory of this distribution
@@ -24,6 +24,6 @@ try:
 except ImportError:
     __version__ = "?"
 
-from .utils import *
-from .request_authorization import *
 from .authorize import *
+from .request_authorization import *
+from .utils import *
