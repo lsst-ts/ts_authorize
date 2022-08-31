@@ -19,12 +19,26 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-try:
-    from .version import *
-except ImportError:
-    __version__ = "?"
+__all__ = ["BaseAuthorizeHandler"]
 
-from . import handler
-from .authorize import *
-from .request_authorization import *
-from .utils import *
+import logging
+from abc import ABC, abstractmethod
+
+from lsst.ts import salobj
+
+
+class BaseAuthorizeHandler(ABC):
+    def __init__(
+        self, log: logging.Logger = None, domain: salobj.Domain = None
+    ) -> None:
+        if log is not None:
+            self.log = log.getChild(str(self))
+        else:
+            self.log = logging.getLogger(str(self))
+        self.domain = domain
+
+    @abstractmethod
+    async def handle_authorize_request(
+        self, data: salobj.type_hints.BaseMsgType
+    ) -> None:
+        raise NotImplementedError

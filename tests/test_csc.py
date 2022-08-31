@@ -19,12 +19,12 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-import asyncio
 import pathlib
 import typing
 import unittest
 
 from lsst.ts import authorize, salobj
+from minimal_test_csc import MinimalTestCsc
 
 # Timeout for a long operation (sec), including waiting for Authorize
 # to time out while trying to change a CSC.
@@ -33,62 +33,18 @@ STD_TIMEOUT = 60
 TEST_CONFIG_DIR = pathlib.Path(__file__).parent / "data" / "config"
 
 
-class MinimalTestCsc(salobj.BaseCsc):
-    """A mimial "Test" CSC that is not configurable.
-
-    By being non-configurable it simplifies the conda build.
-    """
-
-    version = "?"
-    valid_simulation_modes = [0]
-
-    def __init__(
-        self,
-        index: int,
-        config_dir: typing.Optional[str] = None,
-        initial_state: salobj.State = salobj.State.STANDBY,
-        simulation_mode: int = 0,
-    ) -> None:
-        super().__init__(
-            name="Test",
-            index=index,
-            initial_state=initial_state,
-            simulation_mode=simulation_mode,
-        )
-
-    async def do_setArrays(self, data: salobj.type_hints.BaseMsgType) -> None:
-        """Execute the setArrays command."""
-        raise NotImplementedError()
-
-    async def do_setScalars(self, data: salobj.type_hints.BaseMsgType) -> None:
-        """Execute the setScalars command."""
-        raise NotImplementedError()
-
-    async def do_fault(self, data: salobj.type_hints.BaseMsgType) -> None:
-        """Execute the fault command.
-
-        Change the summary state to State.FAULT
-        """
-        self.log.warning("executing the fault command")
-        await self.fault(code=1, report="executing the fault command")
-
-    async def do_wait(self, data: salobj.type_hints.BaseMsgType) -> None:
-        """Execute the wait command.
-
-        Wait for the specified time and then acknowledge the command
-        using the specified ack code.
-        """
-        self.assert_enabled()
-        await asyncio.sleep(data.duration)
-
-
 class AuthorizeTestCase(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTestCase):
     def basic_make_csc(
-        self, initial_state: salobj.State, config_dir: str, **kwargs: typing.Any
+        self,
+        initial_state: salobj.State,
+        config_dir: str,
+        override: str = "",
+        **kwargs: typing.Any,
     ) -> None:
         return authorize.Authorize(
             initial_state=initial_state,
             config_dir=config_dir,
+            override=override,
         )
 
     async def test_standard_state_transitions(self) -> None:
@@ -120,7 +76,7 @@ class AuthorizeTestCase(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTestCase
             exe_name="run_authorize",
         )
 
-    async def test_request_authorization_success(self) -> None:
+    async def test_request_auto_authorization_success(self) -> None:
         index1 = 5
         index2 = 52
         async with self.make_csc(
@@ -165,7 +121,7 @@ class AuthorizeTestCase(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTestCase
             self.assertEqual(csc2.salinfo.authorized_users, desired_users)
             self.assertEqual(csc2.salinfo.non_authorized_cscs, desired_cscs)
 
-    async def test_request_authorization_errors(self) -> None:
+    async def test_request_auto_authorization_errors(self) -> None:
         async with self.make_csc(
             config_dir=TEST_CONFIG_DIR,
             initial_state=salobj.State.ENABLED,
@@ -198,6 +154,29 @@ class AuthorizeTestCase(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTestCase
                     authorizedUsers="some@any",
                     nonAuthorizedCSCs="_badCscName",
                     timeout=STD_TIMEOUT,
+                )
+
+    async def test_request_rest_authorization_errors(self) -> None:
+        index = 5
+        async with self.make_csc(
+            config_dir=TEST_CONFIG_DIR,
+            initial_state=salobj.State.ENABLED,
+            override="test_rest_config.yaml",
+        ), MinimalTestCsc(index=index) as csc:
+            await self.remote.evt_logLevel.aget(timeout=STD_TIMEOUT)
+            self.assertEqual(csc.salinfo.authorized_users, set())
+            self.assertEqual(csc.salinfo.non_authorized_cscs, set())
+
+            # Change the Test CSC
+            desired_users = {"sal@purview", "woof@123.456"}
+            desired_cscs = {"Foo", "Bar:1", "XKCD:47"}
+            # Authorize via REST is not enabled yet, so this should fail.
+            with salobj.assertRaisesAckError():
+                await self.remote.cmd_requestAuthorization.set_start(
+                    cscsToChange=f"Test:{index}",
+                    authorizedUsers=", ".join(desired_users),
+                    nonAuthorizedCSCs=", ".join(desired_cscs),
+                    timeout=60,
                 )
 
 

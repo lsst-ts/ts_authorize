@@ -19,12 +19,17 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-try:
-    from .version import *
-except ImportError:
-    __version__ = "?"
+__all__ = ["RestAuthorizeHandler"]
 
-from . import handler
-from .authorize import *
-from .request_authorization import *
-from .utils import *
+from lsst.ts import salobj
+
+from .base_authorize_handler import BaseAuthorizeHandler
+
+
+class RestAuthorizeHandler(BaseAuthorizeHandler):
+    async def handle_authorize_request(
+        self, data: salobj.type_hints.BaseMsgType
+    ) -> None:
+        raise NotImplementedError(
+            "Running in non-automatic authorization not implement yet."
+        )
