@@ -29,11 +29,11 @@ from lsst.ts import salobj
 from .utils import check_csc, check_user_host
 
 
-def print_log_message(data):
+def print_log_message(data: salobj.BaseMsgType) -> None:
     print(data.message)
 
 
-async def request_authorization_impl():
+async def request_authorization_impl() -> None:
     """Implementation of the request_authorization function."""
     parser = argparse.ArgumentParser(
         "Request authorization changes for one or more CSCs."
@@ -75,7 +75,7 @@ async def request_authorization_impl():
     else:
         prefix = ""
 
-    def replace_me(user_host):
+    def replace_me(user_host: str) -> str:
         """Replace "me" with the value of ``me``."""
         if user_host == "me":
             return me
@@ -117,6 +117,6 @@ async def request_authorization_impl():
         )
 
 
-def request_authorization():
+def request_authorization() -> None:
     """Request authorization."""
     asyncio.run(request_authorization_impl())

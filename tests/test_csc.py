@@ -21,6 +21,7 @@
 
 import asyncio
 import pathlib
+import typing
 import unittest
 
 from lsst.ts import authorize, salobj
@@ -43,11 +44,11 @@ class MinimalTestCsc(salobj.BaseCsc):
 
     def __init__(
         self,
-        index,
-        config_dir=None,
-        initial_state=salobj.State.STANDBY,
-        simulation_mode=0,
-    ):
+        index: int,
+        config_dir: typing.Optional[str] = None,
+        initial_state: salobj.State = salobj.State.STANDBY,
+        simulation_mode: int = 0,
+    ) -> None:
         super().__init__(
             name="Test",
             index=index,
@@ -55,15 +56,15 @@ class MinimalTestCsc(salobj.BaseCsc):
             simulation_mode=simulation_mode,
         )
 
-    async def do_setArrays(self, data):
+    async def do_setArrays(self, data: salobj.type_hints.BaseMsgType) -> None:
         """Execute the setArrays command."""
         raise NotImplementedError()
 
-    async def do_setScalars(self, data):
+    async def do_setScalars(self, data: salobj.type_hints.BaseMsgType) -> None:
         """Execute the setScalars command."""
         raise NotImplementedError()
 
-    async def do_fault(self, data):
+    async def do_fault(self, data: salobj.type_hints.BaseMsgType) -> None:
         """Execute the fault command.
 
         Change the summary state to State.FAULT
@@ -71,7 +72,7 @@ class MinimalTestCsc(salobj.BaseCsc):
         self.log.warning("executing the fault command")
         await self.fault(code=1, report="executing the fault command")
 
-    async def do_wait(self, data):
+    async def do_wait(self, data: salobj.type_hints.BaseMsgType) -> None:
         """Execute the wait command.
 
         Wait for the specified time and then acknowledge the command
@@ -82,13 +83,15 @@ class MinimalTestCsc(salobj.BaseCsc):
 
 
 class AuthorizeTestCase(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTestCase):
-    def basic_make_csc(self, initial_state, config_dir, **kwargs):
+    def basic_make_csc(
+        self, initial_state: salobj.State, config_dir: str, **kwargs: typing.Any
+    ) -> None:
         return authorize.Authorize(
             initial_state=initial_state,
             config_dir=config_dir,
         )
 
-    async def test_standard_state_transitions(self):
+    async def test_standard_state_transitions(self) -> None:
         """Test standard CSC state transitions.
 
         The initial state is STANDBY.
@@ -110,14 +113,14 @@ class AuthorizeTestCase(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTestCase
                 enabled_commands=("requestAuthorization",)
             )
 
-    async def test_bin_script(self):
+    async def test_bin_script(self) -> None:
         await self.check_bin_script(
             name="Authorize",
             index=None,
             exe_name="run_authorize",
         )
 
-    async def test_request_authorization_success(self):
+    async def test_request_authorization_success(self) -> None:
         index1 = 5
         index2 = 52
         async with self.make_csc(
@@ -131,22 +134,22 @@ class AuthorizeTestCase(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTestCase
             self.assertEqual(csc2.salinfo.non_authorized_cscs, set())
 
             # Change the first Test CSC
-            desired_users = ("sal@purview", "woof@123.456")
-            desired_cscs = ("Foo", "Bar:1", "XKCD:47")
+            desired_users = {"sal@purview", "woof@123.456"}
+            desired_cscs = {"Foo", "Bar:1", "XKCD:47"}
             await self.remote.cmd_requestAuthorization.set_start(
                 cscsToChange=f"Test:{index1}",
                 authorizedUsers=", ".join(desired_users),
                 nonAuthorizedCSCs=", ".join(desired_cscs),
                 timeout=60,
             )
-            self.assertEqual(csc1.salinfo.authorized_users, set(desired_users))
-            self.assertEqual(csc1.salinfo.non_authorized_cscs, set(desired_cscs))
+            self.assertEqual(csc1.salinfo.authorized_users, desired_users)
+            self.assertEqual(csc1.salinfo.non_authorized_cscs, desired_cscs)
             self.assertEqual(csc2.salinfo.authorized_users, set())
             self.assertEqual(csc2.salinfo.non_authorized_cscs, set())
 
             # Change both Test CSCs
-            desired_users = ("meow@validate", "v122s@123")
-            desired_cscs = ("AT", "seisen:22")
+            desired_users = {"meow@validate", "v122s@123"}
+            desired_cscs = {"AT", "seisen:22"}
             # Include a CSC that does not exist. Authorize will try to
             # change it, that will time out, command will fail but other CSCs
             # will be set.
@@ -157,12 +160,12 @@ class AuthorizeTestCase(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTestCase
                     nonAuthorizedCSCs=", ".join(desired_cscs),
                     timeout=60,
                 )
-            self.assertEqual(csc1.salinfo.authorized_users, set(desired_users))
-            self.assertEqual(csc1.salinfo.non_authorized_cscs, set(desired_cscs))
-            self.assertEqual(csc2.salinfo.authorized_users, set(desired_users))
-            self.assertEqual(csc2.salinfo.non_authorized_cscs, set(desired_cscs))
+            self.assertEqual(csc1.salinfo.authorized_users, desired_users)
+            self.assertEqual(csc1.salinfo.non_authorized_cscs, desired_cscs)
+            self.assertEqual(csc2.salinfo.authorized_users, desired_users)
+            self.assertEqual(csc2.salinfo.non_authorized_cscs, desired_cscs)
 
-    async def test_request_authorization_errors(self):
+    async def test_request_authorization_errors(self) -> None:
         async with self.make_csc(
             config_dir=TEST_CONFIG_DIR,
             initial_state=salobj.State.ENABLED,

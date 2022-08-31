@@ -25,7 +25,7 @@ from lsst.ts import authorize
 
 
 class UtilsTestCase(unittest.TestCase):
-    def test_check_csc(self):
+    def test_check_csc(self) -> None:
         for good_value in (
             "abc_ABC_123",
             "abc_ABC_123:0",
@@ -52,7 +52,7 @@ class UtilsTestCase(unittest.TestCase):
             with self.assertRaises(ValueError):
                 authorize.check_csc(f"abc:1{bad_index_char}")
 
-    def test_check_user_host(self):
+    def test_check_user_host(self) -> None:
         for good_value in (
             "abc_ABC-123.xyz@abc_ABC-123.xyz",
             "abc_ABC-123.xyz@127.64.34.5",

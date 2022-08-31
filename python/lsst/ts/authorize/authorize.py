@@ -20,6 +20,8 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import asyncio
+import types
+import typing
 
 from lsst.ts import salobj
 
@@ -58,7 +60,10 @@ class Authorize(salobj.ConfigurableCsc):
     enable_cmdline_state = True
 
     def __init__(
-        self, config_dir=None, initial_state=salobj.State.STANDBY, override=""
+        self,
+        config_dir: typing.Optional[str] = None,
+        initial_state: salobj.State = salobj.State.STANDBY,
+        override: str = "",
     ) -> None:
         super().__init__(
             name="Authorize",
@@ -73,9 +78,9 @@ class Authorize(salobj.ConfigurableCsc):
         # authorization.
         self.cmd_requestAuthorization.authorize = False
 
-        self.config = None
+        self.config: typing.Optional[types.SimpleNamespace] = None
 
-    async def configure(self, config) -> None:
+    async def configure(self, config: types.SimpleNamespace) -> None:
         """Configure CSC.
 
         Parameters
@@ -97,10 +102,12 @@ class Authorize(salobj.ConfigurableCsc):
         self.config = config
 
     @staticmethod
-    def get_config_pkg():
+    def get_config_pkg() -> str:
         return "ts_config_ocs"
 
-    async def do_requestAuthorization(self, data):
+    async def do_requestAuthorization(
+        self, data: salobj.type_hints.BaseMsgType
+    ) -> None:
         """Implement the requestAuthorization command.
 
         Parameters
@@ -110,6 +117,8 @@ class Authorize(salobj.ConfigurableCsc):
         """
 
         self.assert_enabled()
+
+        assert self.config is not None
 
         await self.cmd_requestAuthorization.ack_in_progress(
             data, timeout=self.config.timeout_request_authorization
@@ -146,7 +155,7 @@ class Authorize(salobj.ConfigurableCsc):
                 f"{cscs_to_command-cscs_failed_to_set_auth_list}"
             )
 
-    async def validate_request(self, data):
+    async def validate_request(self, data: salobj.type_hints.BaseMsgType) -> set[str]:
         """Validate a requestAuthorization command by checking the input
         integrity and authenticating the request with LOVE.
 
@@ -157,7 +166,7 @@ class Authorize(salobj.ConfigurableCsc):
 
         Returns
         -------
-        cscs_to_command : `list` of `str`
+        cscs_to_command : `set` of `str`
             List of strings with name:index of the CSCs to send setAuthList
             commands to.
 
@@ -194,5 +203,5 @@ class Authorize(salobj.ConfigurableCsc):
         return cscs_to_command
 
 
-def run_authorize():
+def run_authorize() -> None:
     asyncio.run(Authorize.amain(index=None))
