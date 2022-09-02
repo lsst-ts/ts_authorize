@@ -8,7 +8,7 @@ source:
 
 build:
   noarch: generic
-  script: python -m pip install --no-deps --ignore-installed .
+  script: {{ PYTHON }} -m pip install --no-deps --ignore-installed .
   entry_points:
     - request_authorization = lsst.ts.authorize:request_authorization
     - run_authorize = lsst.ts.authorize:run_authorize
@@ -29,14 +29,19 @@ test:
 
 requirements:
   host:
-    - python
+    - python {{ python }}
     - pip
     - setuptools_scm
     - setuptools
-    - pytest-runner
+  build:
+    - python {{ python }}
+    - setuptools_scm
+    - setuptools
+    - ts-conda-build =0.3
+    - types-requests
   run:
-    - python
+    - python {{ python }}
     - setuptools
     - setuptools_scm
-    - ts-idl
-    - ts-salobj
+    - ts-idl {{ idl_version }}
+    - ts-salobj {{ salobj_version }}
