@@ -6,6 +6,16 @@
 Version History
 ###############
 
+v0.6.0
+------
+* Sort imports with isort.
+* Add full MyPy support.
+* Modernize the pre-commit hooks.
+* Extract auto authorize code to separate class.
+* Started adding support for the LOVE REST API.
+  Work on this will continue in the ticket mentioned in the TODOs.
+  This bullet will be updated then as well and new bullets will be added.
+
 v0.5.0
 ------
 
