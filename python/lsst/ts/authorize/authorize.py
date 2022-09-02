@@ -21,15 +21,20 @@
 
 import asyncio
 import types
-import typing
 
 from lsst.ts import salobj
 
 from . import __version__
 from .config_schema import CONFIG_SCHEMA
-from .handler import AutoAuthorizeHandler, BaseAuthorizeHandler, RestAuthorizeHandler
+from .handler import AutoAuthorizeHandler, BaseAuthorizeHandler
 
 
+# TODO DM-36097: The RestAuthorizeHandler needs to be integrated with the CSC.
+#   This will require setting up a recurring task that retrieves the approved
+#   and unprocessed authorize requests, sending any incoming authorize
+#   requests to the REST server and sending statuses to the REST server of the
+#   authorize requests that have been approved and for which the corresponding
+#   CSCs have been sent cmd_setAuthList to.
 class Authorize(salobj.ConfigurableCsc):
     """Manage authorization requests.
 
@@ -59,7 +64,7 @@ class Authorize(salobj.ConfigurableCsc):
 
     def __init__(
         self,
-        config_dir: typing.Optional[str] = None,
+        config_dir: None | str = None,
         initial_state: salobj.State = salobj.State.STANDBY,
         override: str = "",
     ) -> None:
@@ -77,9 +82,9 @@ class Authorize(salobj.ConfigurableCsc):
         self.cmd_requestAuthorization.authorize = False
 
         # Handler for the authorize request.
-        self.authorize_handler: typing.Optional[BaseAuthorizeHandler] = None
+        self.authorize_handler: None | BaseAuthorizeHandler = None
 
-        self.config: typing.Optional[types.SimpleNamespace] = None
+        self.config: None | types.SimpleNamespace = None
 
     async def configure(self, config: types.SimpleNamespace) -> None:
         """Configure CSC.
@@ -94,6 +99,15 @@ class Authorize(salobj.ConfigurableCsc):
             If `config.auto_authorization == False`.
         """
         self.config = config
+
+        if self.config.auto_authorization:
+            self.authorize_handler = AutoAuthorizeHandler(
+                domain=self.salinfo.domain, log=self.log
+            )
+        else:
+            raise NotImplementedError(
+                "Running in non-automatic authorization not implement yet."
+            )
 
     @staticmethod
     def get_config_pkg() -> str:
@@ -110,20 +124,15 @@ class Authorize(salobj.ConfigurableCsc):
             Command data.
         """
 
-        self.assert_enabled()
-
+        assert self.authorize_handler is not None
         assert self.config is not None
+
+        self.assert_enabled()
 
         await self.cmd_requestAuthorization.ack_in_progress(
             data, timeout=self.config.timeout_request_authorization
         )
 
-        if self.config.auto_authorization:
-            self.authorize_handler = AutoAuthorizeHandler(
-                log=self.log, domain=self.salinfo.domain
-            )
-        else:
-            self.authorize_handler = RestAuthorizeHandler(log=self.log)
         await self.authorize_handler.handle_authorize_request(data=data)
 
 

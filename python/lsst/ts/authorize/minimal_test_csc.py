@@ -20,7 +20,6 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import asyncio
-import typing
 
 from lsst.ts import salobj
 
@@ -37,7 +36,7 @@ class MinimalTestCsc(salobj.BaseCsc):
     def __init__(
         self,
         index: int,
-        config_dir: typing.Optional[str] = None,
+        config_dir: None | str = None,
         initial_state: salobj.State = salobj.State.STANDBY,
         simulation_mode: int = 0,
     ) -> None:

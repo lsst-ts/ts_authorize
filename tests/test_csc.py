@@ -24,7 +24,6 @@ import typing
 import unittest
 
 from lsst.ts import authorize, salobj
-from minimal_test_csc import MinimalTestCsc
 
 # Timeout for a long operation (sec), including waiting for Authorize
 # to time out while trying to change a CSC.
@@ -82,12 +81,14 @@ class AuthorizeTestCase(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTestCase
         async with self.make_csc(
             config_dir=TEST_CONFIG_DIR,
             initial_state=salobj.State.ENABLED,
-        ), MinimalTestCsc(index=index1) as csc1, MinimalTestCsc(index=index2) as csc2:
+        ), authorize.MinimalTestCsc(index=index1) as csc1, authorize.MinimalTestCsc(
+            index=index2
+        ) as csc2:
             await self.remote.evt_logLevel.aget(timeout=STD_TIMEOUT)
-            self.assertEqual(csc1.salinfo.authorized_users, set())
-            self.assertEqual(csc1.salinfo.non_authorized_cscs, set())
-            self.assertEqual(csc2.salinfo.authorized_users, set())
-            self.assertEqual(csc2.salinfo.non_authorized_cscs, set())
+            assert csc1.salinfo.authorized_users == set()
+            assert csc1.salinfo.non_authorized_cscs == set()
+            assert csc2.salinfo.authorized_users == set()
+            assert csc2.salinfo.non_authorized_cscs == set()
 
             # Change the first Test CSC
             desired_users = {"sal@purview", "woof@123.456"}
@@ -96,12 +97,12 @@ class AuthorizeTestCase(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTestCase
                 cscsToChange=f"Test:{index1}",
                 authorizedUsers=", ".join(desired_users),
                 nonAuthorizedCSCs=", ".join(desired_cscs),
-                timeout=60,
+                timeout=STD_TIMEOUT,
             )
-            self.assertEqual(csc1.salinfo.authorized_users, desired_users)
-            self.assertEqual(csc1.salinfo.non_authorized_cscs, desired_cscs)
-            self.assertEqual(csc2.salinfo.authorized_users, set())
-            self.assertEqual(csc2.salinfo.non_authorized_cscs, set())
+            assert csc1.salinfo.authorized_users == desired_users
+            assert csc1.salinfo.non_authorized_cscs == desired_cscs
+            assert csc2.salinfo.authorized_users == set()
+            assert csc2.salinfo.non_authorized_cscs == set()
 
             # Change both Test CSCs
             desired_users = {"meow@validate", "v122s@123"}
@@ -114,12 +115,12 @@ class AuthorizeTestCase(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTestCase
                     cscsToChange=f"Test:{index1}, Test:999, Test:{index2}",
                     authorizedUsers=", ".join(desired_users),
                     nonAuthorizedCSCs=", ".join(desired_cscs),
-                    timeout=60,
+                    timeout=STD_TIMEOUT,
                 )
-            self.assertEqual(csc1.salinfo.authorized_users, desired_users)
-            self.assertEqual(csc1.salinfo.non_authorized_cscs, desired_cscs)
-            self.assertEqual(csc2.salinfo.authorized_users, desired_users)
-            self.assertEqual(csc2.salinfo.non_authorized_cscs, desired_cscs)
+            assert csc1.salinfo.authorized_users == desired_users
+            assert csc1.salinfo.non_authorized_cscs == desired_cscs
+            assert csc2.salinfo.authorized_users == desired_users
+            assert csc2.salinfo.non_authorized_cscs == desired_cscs
 
     async def test_request_auto_authorization_errors(self) -> None:
         async with self.make_csc(
@@ -155,30 +156,3 @@ class AuthorizeTestCase(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTestCase
                     nonAuthorizedCSCs="_badCscName",
                     timeout=STD_TIMEOUT,
                 )
-
-    async def test_request_rest_authorization_errors(self) -> None:
-        index = 5
-        async with self.make_csc(
-            config_dir=TEST_CONFIG_DIR,
-            initial_state=salobj.State.ENABLED,
-            override="test_rest_config.yaml",
-        ), MinimalTestCsc(index=index) as csc:
-            await self.remote.evt_logLevel.aget(timeout=STD_TIMEOUT)
-            self.assertEqual(csc.salinfo.authorized_users, set())
-            self.assertEqual(csc.salinfo.non_authorized_cscs, set())
-
-            # Change the Test CSC
-            desired_users = {"sal@purview", "woof@123.456"}
-            desired_cscs = {"Foo", "Bar:1", "XKCD:47"}
-            # Authorize via REST is not enabled yet, so this should fail.
-            with salobj.assertRaisesAckError():
-                await self.remote.cmd_requestAuthorization.set_start(
-                    cscsToChange=f"Test:{index}",
-                    authorizedUsers=", ".join(desired_users),
-                    nonAuthorizedCSCs=", ".join(desired_cscs),
-                    timeout=60,
-                )
-
-
-if __name__ == "__main__":
-    unittest.main()

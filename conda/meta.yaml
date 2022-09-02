@@ -18,6 +18,7 @@ test:
     - ts-conda-build =0.3
     - ts-idl {{ idl_version }}
     - ts-salobj {{ salobj_version }}
+    - aiohttp
   source_files:
     - python
     - bin
@@ -38,7 +39,6 @@ requirements:
     - setuptools_scm
     - setuptools
     - ts-conda-build =0.3
-    - types-requests
   run:
     - python {{ python }}
     - setuptools

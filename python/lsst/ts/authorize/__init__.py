@@ -26,5 +26,6 @@ except ImportError:
 
 from . import handler
 from .authorize import *
+from .minimal_test_csc import *
 from .request_authorization import *
 from .utils import *

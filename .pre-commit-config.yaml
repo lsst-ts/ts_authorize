@@ -26,9 +26,4 @@ repos:
     rev: "v0.971"
     hooks:
       - id: mypy
-        additional_dependencies: [ types-PyYAML==6.0.11, types-requests ]
-        args: [--config-file=pyproject.toml]
-        # Exclude the bin directory to avoid the error
-        # Duplicate module named "__main__"
-        # on bin/run_authorize and bin/request_authorization
-        exclude: bin
+        additional_dependencies: [ types-PyYAML==6.0.11 ]

@@ -102,7 +102,7 @@ pipeline {
             // jenkins to do the following clean up instead of the root in the
             // docker container.
             withEnv(["WHOME=${env.WORKSPACE}"]) {
-                sh 'chown -R 1003:1003 ${HOME}/'
+                sh 'chown -R 1003:1003 ${WHOME}/'
             }
 
             // The path of xml needed by JUnit is relative to

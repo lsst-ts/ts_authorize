@@ -23,23 +23,23 @@ import unittest
 from types import SimpleNamespace
 
 from lsst.ts import authorize, salobj
-from minimal_test_csc import MinimalTestCsc
 
 
 class AutoAuthorizeHandlerTestCase(unittest.IsolatedAsyncioTestCase):
     async def test_handle_authorize_request(self) -> None:
+        salobj.set_random_lsst_dds_partition_prefix()
         domain = salobj.Domain()
         handler = authorize.handler.AutoAuthorizeHandler(domain=domain)
 
         index1 = 5
         index2 = 52
-        async with MinimalTestCsc(index=index1) as csc1, MinimalTestCsc(
-            index=index2
-        ) as csc2:
-            self.assertEqual(csc1.salinfo.authorized_users, set())
-            self.assertEqual(csc1.salinfo.non_authorized_cscs, set())
-            self.assertEqual(csc2.salinfo.authorized_users, set())
-            self.assertEqual(csc2.salinfo.non_authorized_cscs, set())
+        async with authorize.MinimalTestCsc(
+            index=index1
+        ) as csc1, authorize.MinimalTestCsc(index=index2) as csc2:
+            assert csc1.salinfo.authorized_users == set()
+            assert csc1.salinfo.non_authorized_cscs == set()
+            assert csc2.salinfo.authorized_users == set()
+            assert csc2.salinfo.non_authorized_cscs == set()
 
             # Change the first Test CSC
             desired_users = {"sal@purview", "woof@123.456"}
@@ -50,10 +50,10 @@ class AutoAuthorizeHandlerTestCase(unittest.IsolatedAsyncioTestCase):
                 nonAuthorizedCSCs=", ".join(desired_cscs),
             )
             await handler.handle_authorize_request(data=data)
-            self.assertEqual(csc1.salinfo.authorized_users, desired_users)
-            self.assertEqual(csc1.salinfo.non_authorized_cscs, desired_cscs)
-            self.assertEqual(csc2.salinfo.authorized_users, set())
-            self.assertEqual(csc2.salinfo.non_authorized_cscs, set())
+            assert csc1.salinfo.authorized_users == desired_users
+            assert csc1.salinfo.non_authorized_cscs == desired_cscs
+            assert csc2.salinfo.authorized_users == set()
+            assert csc2.salinfo.non_authorized_cscs == set()
 
             # Change both Test CSCs
             desired_users = {"meow@validate", "v122s@123"}
@@ -68,7 +68,7 @@ class AutoAuthorizeHandlerTestCase(unittest.IsolatedAsyncioTestCase):
             )
             with self.assertRaises(RuntimeError):
                 await handler.handle_authorize_request(data=data)
-            self.assertEqual(csc1.salinfo.authorized_users, desired_users)
-            self.assertEqual(csc1.salinfo.non_authorized_cscs, desired_cscs)
-            self.assertEqual(csc2.salinfo.authorized_users, desired_users)
-            self.assertEqual(csc2.salinfo.non_authorized_cscs, desired_cscs)
+            assert csc1.salinfo.authorized_users == desired_users
+            assert csc1.salinfo.non_authorized_cscs == desired_cscs
+            assert csc2.salinfo.authorized_users == desired_users
+            assert csc2.salinfo.non_authorized_cscs == desired_cscs

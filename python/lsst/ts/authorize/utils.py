@@ -27,6 +27,8 @@ CSC_NAME_INDEX_RE = re.compile(r"^[a-zA-Z][_A-Za-z0-9]*(:\d+)?$")
 USER_HOST_RE = re.compile(r"^[a-zA-Z][-._A-Za-z0-9]*@[a-zA-Z0-9][-._A-Za-z0-9]*$")
 
 
+# TODO DM-36097: Check against a list of known CSCs and change to checking a
+#  list of CSC names instead of one at a time.
 def check_csc(csc: str) -> str:
     """Check a csc name[:index] value.
 
@@ -45,6 +47,8 @@ def check_csc(csc: str) -> str:
     raise ValueError(f"Invalid CSC[:index]: {csc!r}")
 
 
+# TODO DM-36097: Change to checking a list of user/host names instead of one
+#  at a time.
 def check_user_host(user_host: str) -> str:
     """Check a user@host value.
 

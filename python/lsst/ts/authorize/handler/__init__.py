@@ -19,6 +19,6 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from .auto_authorize_handler import AutoAuthorizeHandler
+from .auto_authorize_handler import *
 from .base_authorize_handler import *
-from .rest_authorize_handler import RestAuthorizeHandler
+from .rest_authorize_handler import *
