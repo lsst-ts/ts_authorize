@@ -44,7 +44,7 @@ pipeline {
 
         stage("Install Requirements And Update Branches") {
             steps {
-                withEnv(["HOME=${env.WORKSPACE}"]) {
+                withEnv(["WHOME=${env.WORKSPACE}"]) {
                     sh """
                         source ${env.SAL_SETUP_FILE}
                         cd ${env.SAL_USERS_HOME}/repos/ts_config_ocs
@@ -68,7 +68,7 @@ pipeline {
         stage ('Unit Tests and Coverage Analysis') {
             steps {
                 // Pytest needs to export the junit report.
-                withEnv(["HOME=${env.WORKSPACE}"]) {
+                withEnv(["WHOME=${env.WORKSPACE}"]) {
                     sh """
                         source ${env.SAL_SETUP_FILE}
                         setup -k -r .
@@ -80,7 +80,7 @@ pipeline {
 
         stage ('Build and Upload Documentation') {
             steps {
-                withEnv(["HOME=${env.WORKSPACE}"]) {
+                withEnv(["WHOME=${env.WORKSPACE}"]) {
                     sh """
                         source ${env.SAL_SETUP_FILE}
 
@@ -101,7 +101,7 @@ pipeline {
             // is 1003 on TSSW Jenkins instance. In this post stage, it is the
             // jenkins to do the following clean up instead of the root in the
             // docker container.
-            withEnv(["HOME=${env.WORKSPACE}"]) {
+            withEnv(["WHOME=${env.WORKSPACE}"]) {
                 sh 'chown -R 1003:1003 ${HOME}/'
             }
 
