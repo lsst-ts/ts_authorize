@@ -1,6 +1,6 @@
 # This file is part of ts_authorize.
 #
-# Developed for the LSST Data Management System.
+# Developed for Vera C. Rubin Observatory Telescope and Site Systems.
 # This product includes software developed by the LSST Project
 # (https://www.lsst.org).
 # See the COPYRIGHT file at the top-level directory of this distribution
@@ -23,12 +23,13 @@ __all__ = ["check_csc", "check_user_host"]
 
 import re
 
-
 CSC_NAME_INDEX_RE = re.compile(r"^[a-zA-Z][_A-Za-z0-9]*(:\d+)?$")
 USER_HOST_RE = re.compile(r"^[a-zA-Z][-._A-Za-z0-9]*@[a-zA-Z0-9][-._A-Za-z0-9]*$")
 
 
-def check_csc(csc):
+# TODO DM-36097: Check against a list of known CSCs and change to checking a
+#  list of CSC names instead of one at a time.
+def check_csc(csc: str) -> str:
     """Check a csc name[:index] value.
 
     Returns
@@ -46,7 +47,9 @@ def check_csc(csc):
     raise ValueError(f"Invalid CSC[:index]: {csc!r}")
 
 
-def check_user_host(user_host):
+# TODO DM-36097: Change to checking a list of user/host names instead of one
+#  at a time.
+def check_user_host(user_host: str) -> str:
     """Check a user@host value.
 
     Returns

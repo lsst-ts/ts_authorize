@@ -1,17 +1,39 @@
+# This file is part of ts_authorize.
+#
+# Developed for Vera C. Rubin Observatory Telescope and Site Systems.
+# This product includes software developed by the LSST Project
+# (https://www.lsst.org).
+# See the COPYRIGHT file at the top-level directory of this distribution
+# for details of code ownership.
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
 __all__ = ["request_authorization"]
 
 import argparse
 import asyncio
 
-from .utils import check_csc, check_user_host
 from lsst.ts import salobj
 
+from .utils import check_csc, check_user_host
 
-def print_log_message(data):
+
+def print_log_message(data: salobj.BaseMsgType) -> None:
     print(data.message)
 
 
-async def request_authorization_impl():
+async def request_authorization_impl() -> None:
     """Implementation of the request_authorization function."""
     parser = argparse.ArgumentParser(
         "Request authorization changes for one or more CSCs."
@@ -53,7 +75,7 @@ async def request_authorization_impl():
     else:
         prefix = ""
 
-    def replace_me(user_host):
+    def replace_me(user_host: str) -> str:
         """Replace "me" with the value of ``me``."""
         if user_host == "me":
             return me
@@ -95,6 +117,6 @@ async def request_authorization_impl():
         )
 
 
-def request_authorization():
+def request_authorization() -> None:
     """Request authorization."""
     asyncio.run(request_authorization_impl())

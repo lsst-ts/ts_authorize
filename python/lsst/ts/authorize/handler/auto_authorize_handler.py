@@ -19,18 +19,15 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-"""Sphinx configuration file for an LSST stack package.
+__all__ = ["AutoAuthorizeHandler"]
 
-This configuration only affects single-package Sphinx documentation builds.
-"""
+from lsst.ts import salobj
 
-import lsst.ts.authorize  # noqa
-from documenteer.conf.pipelinespkg import *  # type: ignore # noqa
+from .base_authorize_handler import BaseAuthorizeHandler
 
-project = "ts_authorize"
-html_theme_options["logotext"] = project  # type: ignore # noqa
-html_title = project
-html_short_title = project
 
-intersphinx_mapping["ts_salobj"] = ("https://ts-salobj.lsst.io", None)  # type: ignore # noqa
-intersphinx_mapping["ts_xml"] = ("https://ts-xml.lsst.io", None)  # type: ignore # noqa
+class AutoAuthorizeHandler(BaseAuthorizeHandler):
+    async def handle_authorize_request(
+        self, data: salobj.type_hints.BaseMsgType
+    ) -> None:
+        await self.process_authorize_request(data=data)

@@ -20,17 +20,21 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import asyncio
+import types
 
 from lsst.ts import salobj
 
 from . import __version__
-from . import utils
 from .config_schema import CONFIG_SCHEMA
-
-# Timeout for sending setAuthList command (seconds)
-TIMEOUT_SET_AUTH_LIST = 5
+from .handler import AutoAuthorizeHandler, BaseAuthorizeHandler
 
 
+# TODO DM-36097: The RestAuthorizeHandler needs to be integrated with the CSC.
+#   This will require setting up a recurring task that retrieves the approved
+#   and unprocessed authorize requests, sending any incoming authorize
+#   requests to the REST server and sending statuses to the REST server of the
+#   authorize requests that have been approved and for which the corresponding
+#   CSCs have been sent cmd_setAuthList to.
 class Authorize(salobj.ConfigurableCsc):
     """Manage authorization requests.
 
@@ -59,7 +63,10 @@ class Authorize(salobj.ConfigurableCsc):
     enable_cmdline_state = True
 
     def __init__(
-        self, config_dir=None, initial_state=salobj.State.STANDBY, override=""
+        self,
+        config_dir: None | str = None,
+        initial_state: salobj.State = salobj.State.STANDBY,
+        override: str = "",
     ) -> None:
         super().__init__(
             name="Authorize",
@@ -74,9 +81,12 @@ class Authorize(salobj.ConfigurableCsc):
         # authorization.
         self.cmd_requestAuthorization.authorize = False
 
-        self.config = None
+        # Handler for the authorize request.
+        self.authorize_handler: None | BaseAuthorizeHandler = None
 
-    async def configure(self, config) -> None:
+        self.config: None | types.SimpleNamespace = None
+
+    async def configure(self, config: types.SimpleNamespace) -> None:
         """Configure CSC.
 
         Parameters
@@ -88,20 +98,24 @@ class Authorize(salobj.ConfigurableCsc):
         NotImplementedError
             If `config.auto_authorization == False`.
         """
+        self.config = config
 
-        # TODO: Implement validation with LOVE system.
-        if not config.auto_authorization:
+        if self.config.auto_authorization:
+            self.authorize_handler = AutoAuthorizeHandler(
+                domain=self.salinfo.domain, log=self.log
+            )
+        else:
             raise NotImplementedError(
                 "Running in non-automatic authorization not implement yet."
             )
 
-        self.config = config
-
     @staticmethod
-    def get_config_pkg():
+    def get_config_pkg() -> str:
         return "ts_config_ocs"
 
-    async def do_requestAuthorization(self, data):
+    async def do_requestAuthorization(
+        self, data: salobj.type_hints.BaseMsgType
+    ) -> None:
         """Implement the requestAuthorization command.
 
         Parameters
@@ -110,90 +124,17 @@ class Authorize(salobj.ConfigurableCsc):
             Command data.
         """
 
+        assert self.authorize_handler is not None
+        assert self.config is not None
+
         self.assert_enabled()
 
         await self.cmd_requestAuthorization.ack_in_progress(
             data, timeout=self.config.timeout_request_authorization
         )
 
-        cscs_to_command = await self.validate_request(data=data)
-
-        cscs_failed_to_set_auth_list = set()
-        for csc_name_index in cscs_to_command:
-            csc_name, csc_index = salobj.name_to_name_index(csc_name_index)
-            try:
-                async with salobj.Remote(
-                    domain=self.salinfo.domain,
-                    name=csc_name,
-                    index=csc_index,
-                    include=[],
-                ) as remote:
-                    await remote.cmd_setAuthList.set_start(
-                        authorizedUsers=data.authorizedUsers,
-                        nonAuthorizedCSCs=data.nonAuthorizedCSCs,
-                        timeout=TIMEOUT_SET_AUTH_LIST,
-                    )
-                self.log.info(f"Set authList for {csc_name_index}")
-            except salobj.AckError as e:
-                cscs_failed_to_set_auth_list.update({csc_name_index})
-                self.log.warning(
-                    f"Failed to set authList for {csc_name_index}: {e.args[0]}"
-                )
-
-        if len(cscs_failed_to_set_auth_list) > 0:
-            raise RuntimeError(
-                f"Failed to set authList for the following CSCs: {cscs_failed_to_set_auth_list}. "
-                "The following CSCs were successfully updated: "
-                f"{cscs_to_command-cscs_failed_to_set_auth_list}"
-            )
-
-    async def validate_request(self, data):
-        """Validate a requestAuthorization command by checking the input
-        integrity and authenticating the request with LOVE.
-
-        Parameters
-        ----------
-        data : ``cmd_requestAuthorization.DataType``
-            Command data.
-
-        Returns
-        -------
-        cscs_to_command : `list` of `str`
-            List of strings with name:index of the CSCs to send setAuthList
-            commands to.
-
-        Raises
-        ------
-        salobj.ExpectedError
-            If no csc is specified.
-        """
-
-        # Check values
-        cscs_to_command = {val.strip() for val in data.cscsToChange.split(",")}
-        if not cscs_to_command:
-            raise salobj.ExpectedError(
-                "No CSCs specified in cscsToChange; command has no effect."
-            )
-
-        for csc in cscs_to_command:
-            utils.check_csc(csc)
-
-        auth_users = data.authorizedUsers
-        if auth_users:
-            if auth_users[0] in ("+", "-"):
-                auth_users = auth_users[1:]
-            for user in auth_users.split(","):
-                utils.check_user_host(user.strip())
-
-        nonauth_cscs = data.nonAuthorizedCSCs
-        if nonauth_cscs:
-            if nonauth_cscs[0] in ("+", "-"):
-                nonauth_cscs = nonauth_cscs[1:]
-            for csc in nonauth_cscs.split(","):
-                utils.check_csc(csc.strip())
-
-        return cscs_to_command
+        await self.authorize_handler.handle_authorize_request(data=data)
 
 
-def run_authorize():
+def run_authorize() -> None:
     asyncio.run(Authorize.amain(index=None))
