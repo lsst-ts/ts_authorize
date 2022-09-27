@@ -72,3 +72,5 @@ class AutoAuthorizeHandlerTestCase(unittest.IsolatedAsyncioTestCase):
             assert csc1.salinfo.non_authorized_cscs == desired_cscs
             assert csc2.salinfo.authorized_users == desired_users
             assert csc2.salinfo.non_authorized_cscs == desired_cscs
+            assert len(handler.csc_failed_messages) == 1
+            assert "Test:999" in handler.csc_failed_messages.keys()

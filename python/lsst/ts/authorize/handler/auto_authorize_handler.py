@@ -30,4 +30,29 @@ class AutoAuthorizeHandler(BaseAuthorizeHandler):
     async def handle_authorize_request(
         self, data: salobj.type_hints.BaseMsgType
     ) -> None:
+        """Handle an authorize request. Contact each CSC in the request and
+        send the setAuthList command.
+
+        Parameters
+        ----------
+        data : `salobj.type_hints.BaseMsgType`
+            The data containing the authorize request as described in the
+            corresponding xml file in ts_xml.
+
+        Raises
+        ------
+        RuntimeError
+            Raised in case at least one of the CSCs cannot be contacted.
+
+        Notes
+        -----
+        All CSCs that can be contacted get changed, even if one or more CSCs
+        cannot be contacted.
+        """
         await self.process_authorize_request(data=data)
+
+        if len(self.csc_failed_messages) > 0:
+            raise RuntimeError(
+                f"Failed to set authList for the following CSCs: {self.csc_failed_messages}. "
+                f"The following CSCs were successfully updated: {self.cscs_succeeded}."
+            )

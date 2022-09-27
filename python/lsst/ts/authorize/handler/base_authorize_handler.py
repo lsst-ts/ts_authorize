@@ -46,6 +46,14 @@ class BaseAuthorizeHandler(ABC):
             self.log = logging.getLogger(type(self).__name__)
         self.domain = domain
         self.config = config
+        # Hold the names, indices and error messages for the CSC for which
+        # sending the autList command failed. This is mostly for unit tests but
+        # it also helps to avoid returning a tuple of a dict and a set.
+        self.csc_failed_messages: dict[str, str] = {}
+        # Hold the names and indices of the CSC for which sending the authList
+        # command succeeded. This is mostly for unit tests but it also helps to
+        # avoid returning a tuple of a dict and a set.
+        self.cscs_succeeded: set[str] = set()
 
     @abstractmethod
     async def handle_authorize_request(
@@ -73,11 +81,6 @@ class BaseAuthorizeHandler(ABC):
             The data containing the authorize request as described in the
             corresponding xml file in ts_xml.
 
-        Raises
-        ------
-        RuntimeError
-            Raised in case at least one of the CSCs cannot be contacted.
-
         Notes
         -----
         All CSCs that can be contacted get changed, even if one or more CSCs
@@ -85,7 +88,11 @@ class BaseAuthorizeHandler(ABC):
         """
         cscs_to_command = await self.validate_request(data=data)
 
-        cscs_failed_to_set_auth_list = set()
+        # Reset these variables so they don't have a value left from previous
+        # calls to this function.
+        self.csc_failed_messages = {}
+        self.cscs_succeeded = set()
+
         for csc_name_index in cscs_to_command:
             csc_name, csc_index = salobj.name_to_name_index(csc_name_index)
             try:
@@ -104,20 +111,12 @@ class BaseAuthorizeHandler(ABC):
                         f"Set authList for {csc_name_index} to {data.authorizedUsers}"
                     )
             except salobj.AckError as e:
-                cscs_failed_to_set_auth_list.update({csc_name_index})
+                self.csc_failed_messages[csc_name_index] = e.args[0]
                 self.log.warning(
                     f"Failed to set authList for {csc_name_index}: {e.args[0]}"
                 )
 
-        # TODO DM-36097: Process the failure to set auth list for one or more
-        #  CSCs in a way that allows for providing feedback to the REST server
-        #  if that is used.
-        if len(cscs_failed_to_set_auth_list) > 0:
-            raise RuntimeError(
-                f"Failed to set authList for the following CSCs: {cscs_failed_to_set_auth_list}. "
-                "The following CSCs were successfully updated: "
-                f"{cscs_to_command - cscs_failed_to_set_auth_list}"
-            )
+        self.cscs_succeeded = cscs_to_command - self.csc_failed_messages.keys()
 
     async def validate_request(self, data: salobj.type_hints.BaseMsgType) -> set[str]:
         """Validate a requestAuthorization command by checking the input
