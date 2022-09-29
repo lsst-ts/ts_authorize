@@ -24,74 +24,13 @@ import unittest
 
 from aiohttp import web
 from aiohttp.test_utils import TestServer
+from auth_request_data import (
+    APPROVED_AUTH_REQUESTS,
+    INDEX1,
+    INDEX2,
+    PENDING_AUTH_REQUESTS,
+)
 from lsst.ts import authorize, salobj
-
-# Indices for the test CSCs.
-INDEX1 = 5
-INDEX2 = 52
-
-# The users that will receive authorization.
-AUTH_USERS1 = "+test1@localhost, test2@localhost"
-AUTH_USERS2 = "+test3@localhost"
-
-# TODO DM-36097: Add some tests for requests with a leading - and some with no
-#  prefix. Add a test utility that provides a sequence of valid auth request
-#  data, with the expected result (authorized users and non-authorized CSCs) on
-#  success.
-# The unauthorized CSCs.
-UNAUTH_CSCS1 = "+TestCSC2, TestCSC3:1"
-UNAUTH_CSCS2 = "+TestCSC3:1"
-
-# TODO DM-36097: Use a dataclass.
-# A list representing a single pending authorize request.
-PENDING_AUTH_REQUEST: list[dict[str, int | float | str]] = [
-    {
-        "id": 0,
-        "resolved_by": "operator1@localhost",
-        "user": "team_leader1@localhost",
-        "cscs_to_change": f"Test:{INDEX1}",
-        "authorized_users": AUTH_USERS1,
-        "unauthorized_cscs": UNAUTH_CSCS1,
-        "requested_by": "team_leader1@localhost",
-        "requested_at": "2022-09-01T11:00:00.000Z",
-        "duration": 60,
-        "message": "Test message.",
-        "status": "Pending",
-        "resolved_at": "2022-09-01T11:05:00.000Z",
-    }
-]
-
-# A list representing two approved authorize requests.
-APPROVED_AUTH_REQUESTS: list[dict[str, int | float | str]] = [
-    {
-        "id": 0,
-        "resolved_by": "operator1@localhost",
-        "user": "team_leader1@localhost",
-        "cscs_to_change": f"Test:{INDEX1}",
-        "authorized_users": AUTH_USERS1,
-        "unauthorized_cscs": UNAUTH_CSCS1,
-        "requested_by": "team_leader1@localhost",
-        "requested_at": "2022-09-01T11:00:00.000Z",
-        "duration": 60,
-        "message": "Test message.",
-        "status": "Approved",
-        "resolved_at": "2022-09-01T11:05:00.000Z",
-    },
-    {
-        "id": 1,
-        "resolved_by": "operator2@localhost",
-        "user": "team_leader1@localhost",
-        "cscs_to_change": f"Test:{INDEX1},Test:{INDEX2}",
-        "authorized_users": AUTH_USERS2,
-        "unauthorized_cscs": UNAUTH_CSCS2,
-        "requested_by": "team_leader1@localhost",
-        "requested_at": "2022-09-01T11:10:00.000Z",
-        "duration": 60,
-        "message": "Test message.",
-        "status": "Approved",
-        "resolved_at": "2022-09-01T11:15:00.000Z",
-    },
-]
 
 
 class RestAuthorizeHandlerTestCase(unittest.IsolatedAsyncioTestCase):
@@ -117,19 +56,19 @@ class RestAuthorizeHandlerTestCase(unittest.IsolatedAsyncioTestCase):
 
         # The expected result. This adjusted to be set in the course of the
         # test case so the get_handler returns the expected response.
-        self.expected_result = PENDING_AUTH_REQUEST
+        self.expected_rest_message: authorize.handler.RestMessageTypeList = []
 
     async def get_handler(self, request: web.Request) -> web.Response:
         """Handler coroutine for the test REST server."""
-        return web.json_response(self.expected_result)
+        return web.json_response(self.expected_rest_message)
 
     async def asyncTearDown(self) -> None:
         await self.server.close()
 
     async def validate_auth_requests(
         self,
-        response_list: list[dict[str, int | float | str]],
-        auth_request_list: list[dict[str, int | float | str]],
+        response_list: authorize.handler.RestMessageTypeList,
+        auth_request_list: authorize.handler.RestMessageTypeList,
     ) -> None:
         assert len(response_list) == len(auth_request_list)
         if len(response_list) > 0:
@@ -149,51 +88,43 @@ class RestAuthorizeHandlerTestCase(unittest.IsolatedAsyncioTestCase):
             assert csc2.salinfo.authorized_users == set()
             assert csc2.salinfo.non_authorized_cscs == set()
 
-            self.expected_result = APPROVED_AUTH_REQUESTS
-            await self.handler.get_approved_and_unprocessed_auth_requests()
-            await self.validate_auth_requests(
-                response_list=self.handler.response,
-                auth_request_list=self.expected_result,
-            )
+            for aar in APPROVED_AUTH_REQUESTS:
+                self.expected_rest_message = aar.rest_messages
+                await self.handler.process_approved_and_unprocessed_auth_requests()
+                await self.validate_auth_requests(
+                    response_list=self.handler.response,
+                    auth_request_list=self.expected_rest_message,
+                )
 
-            # Remove any leading "+" or "-" from the user names and
-            # unauthorized CSCs.
-            expected_users1 = {
-                val[1:].strip() if val[0] in "+-" else val.strip()
-                for val in AUTH_USERS1.split(",")
-            }
-            expected_users2 = {
-                val[1:].strip() if val[0] in "+-" else val.strip()
-                for val in AUTH_USERS2.split(",")
-            }
-            expected_unauth_cscs1 = {
-                val[1:].strip() if val[0] in "+-" else val.strip()
-                for val in UNAUTH_CSCS1.split(",")
-            }
-            expected_unauth_cscs2 = {
-                val[1:].strip() if val[0] in "+-" else val.strip()
-                for val in UNAUTH_CSCS2.split(",")
-            }
-
-            expected_users_csc1 = expected_users1 | expected_users2
-            expected_users_csc2 = expected_users2
-            expected_unauth_cscs_csc1 = expected_unauth_cscs1 | expected_unauth_cscs2
-            expected_unauth_cscs_csc2 = expected_unauth_cscs2
-
-            assert csc1.salinfo.authorized_users == expected_users_csc1
-            assert csc1.salinfo.non_authorized_cscs == expected_unauth_cscs_csc1
-            assert csc2.salinfo.authorized_users == expected_users_csc2
-            assert csc2.salinfo.non_authorized_cscs == expected_unauth_cscs_csc2
+                assert csc1.salinfo.authorized_users == aar.expected_authorized_users[0]
+                assert (
+                    csc1.salinfo.non_authorized_cscs
+                    == aar.expected_non_authorized_cscs[0]
+                )
+                assert csc2.salinfo.authorized_users == aar.expected_authorized_users[1]
+                assert (
+                    csc2.salinfo.non_authorized_cscs
+                    == aar.expected_non_authorized_cscs[1]
+                )
+                assert (
+                    self.handler.csc_failed_messages.keys() == aar.expected_failed_cscs
+                )
 
     async def test_handle_authorize_request(self) -> None:
-        data = types.SimpleNamespace(
-            authorizedUsers="test1@localhost,test3@localhost",
-            cscsToChange="TestCSC1",
-            nonAuthorizedCSCs="TestCSC2, TestCSC3:1",
-            private_identity="RestAuthorizeHandlerTestCase",
-        )
-        self.expected_result = PENDING_AUTH_REQUEST
-        await self.handler.handle_authorize_request(data)
-        await self.validate_auth_requests(
-            response_list=self.handler.response, auth_request_list=self.expected_result
-        )
+        for pending_auth_request in PENDING_AUTH_REQUESTS:
+            self.expected_rest_message = pending_auth_request.rest_messages
+            data = types.SimpleNamespace(
+                authorizedUsers=pending_auth_request.rest_messages[0][
+                    "authorized_users"
+                ],
+                cscsToChange=pending_auth_request.rest_messages[0]["cscs_to_change"],
+                nonAuthorizedCSCs=pending_auth_request.rest_messages[0][
+                    "unauthorized_cscs"
+                ],
+                private_identity="RestAuthorizeHandlerTestCase",
+            )
+            await self.handler.handle_authorize_request(data)
+            await self.validate_auth_requests(
+                response_list=self.handler.response,
+                auth_request_list=self.expected_rest_message,
+            )

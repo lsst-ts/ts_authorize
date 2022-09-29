@@ -23,6 +23,7 @@ import pathlib
 import typing
 import unittest
 
+from auth_request_data import INDEX1, INDEX2, NON_EXISTENT_CSC, TEST_DATA
 from lsst.ts import authorize, salobj
 
 # Timeout for a long operation (sec), including waiting for Authorize
@@ -76,13 +77,11 @@ class AuthorizeTestCase(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTestCase
         )
 
     async def test_request_auto_authorization_success(self) -> None:
-        index1 = 5
-        index2 = 52
         async with self.make_csc(
             config_dir=TEST_CONFIG_DIR,
             initial_state=salobj.State.ENABLED,
-        ), authorize.MinimalTestCsc(index=index1) as csc1, authorize.MinimalTestCsc(
-            index=index2
+        ), authorize.MinimalTestCsc(index=INDEX1) as csc1, authorize.MinimalTestCsc(
+            index=INDEX2
         ) as csc2:
             await self.remote.evt_logLevel.aget(timeout=STD_TIMEOUT)
             assert csc1.salinfo.authorized_users == set()
@@ -90,37 +89,28 @@ class AuthorizeTestCase(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTestCase
             assert csc2.salinfo.authorized_users == set()
             assert csc2.salinfo.non_authorized_cscs == set()
 
-            # Change the first Test CSC
-            desired_users = {"sal@purview", "woof@123.456"}
-            desired_cscs = {"Foo", "Bar:1", "XKCD:47"}
-            await self.remote.cmd_requestAuthorization.set_start(
-                cscsToChange=f"Test:{index1}",
-                authorizedUsers=", ".join(desired_users),
-                nonAuthorizedCSCs=", ".join(desired_cscs),
-                timeout=STD_TIMEOUT,
-            )
-            assert csc1.salinfo.authorized_users == desired_users
-            assert csc1.salinfo.non_authorized_cscs == desired_cscs
-            assert csc2.salinfo.authorized_users == set()
-            assert csc2.salinfo.non_authorized_cscs == set()
-
-            # Change both Test CSCs
-            desired_users = {"meow@validate", "v122s@123"}
-            desired_cscs = {"AT", "seisen:22"}
-            # Include a CSC that does not exist. Authorize will try to
-            # change it, that will time out, command will fail but other CSCs
-            # will be set.
-            with salobj.assertRaisesAckError():
-                await self.remote.cmd_requestAuthorization.set_start(
-                    cscsToChange=f"Test:{index1}, Test:999, Test:{index2}",
-                    authorizedUsers=", ".join(desired_users),
-                    nonAuthorizedCSCs=", ".join(desired_cscs),
-                    timeout=STD_TIMEOUT,
+            for td in TEST_DATA:
+                data = {
+                    "cscsToChange": td.cscs_to_command,
+                    "authorizedUsers": td.authorized_users,
+                    "nonAuthorizedCSCs": td.non_authorized_cscs,
+                    "timeout": STD_TIMEOUT,
+                }
+                if NON_EXISTENT_CSC in td.cscs_to_command:
+                    with salobj.assertRaisesAckError():
+                        await self.remote.cmd_requestAuthorization.set_start(**data)
+                else:
+                    await self.remote.cmd_requestAuthorization.set_start(**data)
+                assert csc1.salinfo.authorized_users == td.expected_authorized_users[0]
+                assert (
+                    csc1.salinfo.non_authorized_cscs
+                    == td.expected_non_authorized_cscs[0]
                 )
-            assert csc1.salinfo.authorized_users == desired_users
-            assert csc1.salinfo.non_authorized_cscs == desired_cscs
-            assert csc2.salinfo.authorized_users == desired_users
-            assert csc2.salinfo.non_authorized_cscs == desired_cscs
+                assert csc2.salinfo.authorized_users == td.expected_authorized_users[1]
+                assert (
+                    csc2.salinfo.non_authorized_cscs
+                    == td.expected_non_authorized_cscs[1]
+                )
 
     async def test_request_auto_authorization_errors(self) -> None:
         async with self.make_csc(

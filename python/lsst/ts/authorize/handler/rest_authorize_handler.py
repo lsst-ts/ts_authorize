@@ -19,7 +19,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-__all__ = ["RestAuthorizeHandler"]
+__all__ = ["RestAuthorizeHandler", "RestMessageType", "RestMessageTypeList"]
 
 import asyncio
 import logging
@@ -29,6 +29,10 @@ import aiohttp
 from lsst.ts import salobj
 
 from .base_authorize_handler import BaseAuthorizeHandler
+
+# Define data types for improved readability of the code.
+RestMessageType = dict[str, int | float | str]
+RestMessageTypeList = list[RestMessageType]
 
 
 class RestAuthorizeHandler(BaseAuthorizeHandler):
@@ -69,7 +73,7 @@ class RestAuthorizeHandler(BaseAuthorizeHandler):
     ) -> None:
         super().__init__(domain=domain, log=log, config=config)
         assert self.config is not None
-        self.response: None | list[dict[str, int | float | str]] = None
+        self.response: None | RestMessageTypeList = None
         self.rest_url = (
             f"http://{self.config.host}:{self.config.port}/api/authlistrequest/"
         )
@@ -99,11 +103,11 @@ class RestAuthorizeHandler(BaseAuthorizeHandler):
             ) as resp:
                 self.response = await resp.json()
 
-    async def get_approved_and_unprocessed_auth_requests(
+    async def process_approved_and_unprocessed_auth_requests(
         self,
     ) -> None:
         """GET the approved and unprocessed authorize requests from the REST
-        server.
+        server and process them.
 
         These are authorize requests that have been approved by an
         operator and that have not been processed by this CSC yet.
@@ -111,13 +115,14 @@ class RestAuthorizeHandler(BaseAuthorizeHandler):
         async with self.lock, aiohttp.ClientSession() as session:
             async with session.get(self.rest_url) as resp:
                 self.response = await resp.json()
-                assert self.response is not None
-                for response in self.response:
-                    data = types.SimpleNamespace(
-                        authorizedUsers=response["authorized_users"],
-                        cscsToChange=response["cscs_to_change"],
-                        nonAuthorizedCSCs=response["unauthorized_cscs"],
-                    )
-                    await self.process_authorize_request(data=data)
+                if self.response is not None:
+                    for response in self.response:
+                        data = types.SimpleNamespace(
+                            authorizedUsers=response["authorized_users"],
+                            cscsToChange=response["cscs_to_change"],
+                            nonAuthorizedCSCs=response["unauthorized_cscs"],
+                        )
+                        await self.process_authorize_request(data=data)
 
-                    # TODO DM-36097: Add sending feedback to the REST server.
+                        # TODO DM-36097: Add sending feedback to the REST
+                        #  server.
