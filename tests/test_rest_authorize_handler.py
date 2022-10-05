@@ -26,6 +26,7 @@ from aiohttp import web
 from aiohttp.test_utils import TestServer
 from auth_request_data import (
     APPROVED_AUTH_REQUESTS,
+    APPROVED_PROCESSED_AUTH_REQUESTS,
     INDEX1,
     INDEX2,
     PENDING_AUTH_REQUESTS,
@@ -50,7 +51,13 @@ class RestAuthorizeHandlerTestCase(unittest.IsolatedAsyncioTestCase):
 
         # Setup the test REST server.
         app = web.Application()
-        app.router.add_get("/api/authlistrequest/", self.get_handler)
+        url_part = authorize.handler.AUTHLISTREQUEST_API
+        app.router.add_get(url_part, self.request_handler)
+        app.router.add_post(authorize.handler.AUTHLISTREQUEST_API, self.request_handler)
+        app.router.add_put(
+            authorize.handler.AUTHLISTREQUEST_API + authorize.handler.ID_EXECUTE_PARAMS,
+            self.put_request_handler,
+        )
         self.server = TestServer(app=app, port=5000)
         await self.server.start_server()
 
@@ -58,9 +65,15 @@ class RestAuthorizeHandlerTestCase(unittest.IsolatedAsyncioTestCase):
         # test case so the get_handler returns the expected response.
         self.expected_rest_message: authorize.handler.RestMessageTypeList = []
 
-    async def get_handler(self, request: web.Request) -> web.Response:
-        """Handler coroutine for the test REST server."""
+    async def request_handler(self, request: web.Request) -> web.Response:
+        """General handler coroutine for the test REST server."""
         return web.json_response(self.expected_rest_message)
+
+    async def put_request_handler(self, request: web.Request) -> web.Response:
+        """PUT handler coroutine for the test REST server."""
+        request_id = int(request.match_info["request_id"])
+        response_dict = APPROVED_PROCESSED_AUTH_REQUESTS[request_id]
+        return web.json_response(response_dict)
 
     async def asyncTearDown(self) -> None:
         await self.server.close()
@@ -79,7 +92,7 @@ class RestAuthorizeHandlerTestCase(unittest.IsolatedAsyncioTestCase):
                     response["unauthorized_cscs"] == auth_request["unauthorized_cscs"]
                 )
 
-    async def test_get_approved_and_unprocessed_auth_requests(self) -> None:
+    async def test_process_approved_and_unprocessed_auth_requests(self) -> None:
         async with authorize.MinimalTestCsc(
             index=INDEX1
         ) as csc1, authorize.MinimalTestCsc(index=INDEX2) as csc2:

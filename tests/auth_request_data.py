@@ -46,9 +46,6 @@ CSCS_TO_REMOVE = {"XKCD:47", "AT", NON_EXISTENT_CSC}
 JOINED_TEST_CSCS = TEST_CSCS_1 | TEST_CSCS_2
 REMAINING_CSCS = JOINED_TEST_CSCS - CSCS_TO_REMOVE
 
-# ID for the RestMessage instances
-message_id = 0
-
 
 @dataclass
 class AuthRequestData:
@@ -71,12 +68,13 @@ class RestMessage:
     authorized_users: str
     unauthorized_cscs: str
     status: str
+    execution_status: str
+    execution_message: str
     resolved_by: str = "operator1@localhost"
     user: str = "team_leader1@localhost"
     requested_by: str = "team_leader1@localhost"
     requested_at: str = "2022-09-01T11:10:00.000Z"
     duration: int = 60
-    message: str = "Test message."
     resolved_at: str = "2022-09-01T11:15:00.000Z"
 
 
@@ -134,10 +132,12 @@ TEST_DATA = [
 
 
 def create_rest_message_from_auth_request_data(
-    ard: AuthRequestData, status: str
+    ard: AuthRequestData,
+    message_id: int,
+    status: str,
+    execution_status: str = "Pending",
+    execution_message: str = "",
 ) -> RestMessageType:
-    global message_id
-    message_id = message_id + 1
     return asdict(
         RestMessage(
             id=message_id,
@@ -145,27 +145,37 @@ def create_rest_message_from_auth_request_data(
             authorized_users=ard.authorized_users,
             unauthorized_cscs=ard.non_authorized_cscs,
             status=status,
+            execution_status=execution_status,
+            execution_message=execution_message,
         )
     )
 
 
 def create_approved_rest_message_from_auth_request_data(
-    ard: AuthRequestData,
+    ard: AuthRequestData, message_id: int
 ) -> RestMessage:
-    return create_rest_message_from_auth_request_data(ard, "Approved")
+    return create_rest_message_from_auth_request_data(ard, message_id, "Approved")
 
 
 def create_pending_rest_message_from_auth_request_data(
-    ard: AuthRequestData,
+    ard: AuthRequestData, message_id: int
 ) -> RestMessage:
-    return create_rest_message_from_auth_request_data(ard, "Pending")
+    return create_rest_message_from_auth_request_data(ard, message_id, "Pending")
 
 
-# A list representing a single pending authorize request.
+def create_approved_unprocessed_rest_message_from_auth_request_data(
+    ard: AuthRequestData, message_id: int, execution_status: str, execution_message: str
+) -> RestMessage:
+    return create_rest_message_from_auth_request_data(
+        ard, message_id, "Approved", execution_status, execution_message
+    )
+
+
+# A list representing a single pending, unprocessed authorize request.
 PENDING_AUTH_REQUESTS = [
     RestMessageData(
         rest_messages=[
-            create_pending_rest_message_from_auth_request_data(TEST_DATA[0])
+            create_pending_rest_message_from_auth_request_data(TEST_DATA[0], 0)
         ],
         expected_authorized_users=TEST_DATA[0].expected_authorized_users,
         expected_non_authorized_cscs=TEST_DATA[0].expected_non_authorized_cscs,
@@ -173,12 +183,12 @@ PENDING_AUTH_REQUESTS = [
     )
 ]
 
-# A list of single and multiple approved authorization requests.
+# A list of single and multiple approved, unprocessed authorization requests.
 APPROVED_AUTH_REQUESTS = [
     RestMessageData(
         rest_messages=[
-            create_approved_rest_message_from_auth_request_data(TEST_DATA[0]),
-            create_approved_rest_message_from_auth_request_data(TEST_DATA[1]),
+            create_approved_rest_message_from_auth_request_data(TEST_DATA[0], 0),
+            create_approved_rest_message_from_auth_request_data(TEST_DATA[1], 1),
         ],
         expected_authorized_users=TEST_DATA[1].expected_authorized_users,
         expected_non_authorized_cscs=TEST_DATA[1].expected_non_authorized_cscs,
@@ -186,7 +196,7 @@ APPROVED_AUTH_REQUESTS = [
     ),
     RestMessageData(
         rest_messages=[
-            create_approved_rest_message_from_auth_request_data(TEST_DATA[2]),
+            create_approved_rest_message_from_auth_request_data(TEST_DATA[2], 2),
         ],
         expected_authorized_users=TEST_DATA[2].expected_authorized_users,
         expected_non_authorized_cscs=TEST_DATA[2].expected_non_authorized_cscs,
@@ -194,10 +204,39 @@ APPROVED_AUTH_REQUESTS = [
     ),
     RestMessageData(
         rest_messages=[
-            create_approved_rest_message_from_auth_request_data(TEST_DATA[3]),
+            create_approved_rest_message_from_auth_request_data(TEST_DATA[3], 3),
         ],
         expected_authorized_users=TEST_DATA[3].expected_authorized_users,
         expected_non_authorized_cscs=TEST_DATA[3].expected_non_authorized_cscs,
         expected_failed_cscs=TEST_DATA[3].expected_failed_cscs,
+    ),
+]
+
+# A list of approved, processed authorization requests.
+APPROVED_PROCESSED_AUTH_REQUESTS = [
+    create_approved_unprocessed_rest_message_from_auth_request_data(
+        TEST_DATA[0],
+        0,
+        "Successful",
+        "The following CSCs were updated correctly: Test:5.",
+    ),
+    create_approved_unprocessed_rest_message_from_auth_request_data(
+        TEST_DATA[1],
+        1,
+        "Failed",
+        "The following CSCs were updated correctly: Test:5, Test:52. "
+        + "The following CSCs failed to update correctly: Test:999.",
+    ),
+    create_approved_unprocessed_rest_message_from_auth_request_data(
+        TEST_DATA[2],
+        2,
+        "Successful",
+        "The following CSCs were updated correctly: Test:5, Test:52.",
+    ),
+    create_approved_unprocessed_rest_message_from_auth_request_data(
+        TEST_DATA[3],
+        3,
+        "Successful",
+        "The following CSCs were updated correctly: Test:5, Test:52.",
     ),
 ]
