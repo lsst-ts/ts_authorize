@@ -35,22 +35,24 @@ properties:
     host:
         type: string
         description: >-
-            Hostname of the LOVE server to validate request authorization
-            commands.
+            Hostname of the LOVE server to validate request authorization commands.
     port:
         type: integer
         description: Port to connect to the LOVE server (see host for more information).
     timeout_request_authorization:
         type: number
         description: >-
-            Timeout for waiting requests to change the authlist to be processed
-            by operators.
+            Timeout [s] for waiting requests to change the authlist to be processed by operators.
     auto_authorization:
         type: boolean
         description: >-
             Automatically aprove authorization requests?
             If true, all requests are approved automatically.
             If false, a request to the LOVE frontend is generated.
+    poll_interval:
+        type: integer
+        description: >-
+            Sleep time [s] for the periodic task of the authorization handler.
 additionalProperties: false
 """
 )

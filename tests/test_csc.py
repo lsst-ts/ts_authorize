@@ -19,12 +19,23 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+import asyncio
 import pathlib
 import typing
 import unittest
 
-from auth_request_data import INDEX1, INDEX2, NON_EXISTENT_CSC, TEST_DATA
+from aiohttp import web
+from aiohttp.test_utils import TestServer
 from lsst.ts import authorize, salobj
+from lsst.ts.authorize.testutils import (
+    APPROVED_AUTH_REQUESTS,
+    APPROVED_PROCESSED_AUTH_REQUESTS,
+    INDEX1,
+    INDEX2,
+    NON_EXISTENT_CSC,
+    PENDING_AUTH_REQUESTS,
+    TEST_DATA,
+)
 
 # Timeout for a long operation (sec), including waiting for Authorize
 # to time out while trying to change a CSC.
@@ -34,6 +45,38 @@ TEST_CONFIG_DIR = pathlib.Path(__file__).parent / "data" / "config"
 
 
 class AuthorizeTestCase(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTestCase):
+    async def asyncSetUp(self) -> None:
+        await super().asyncSetUp()
+
+        # Setup the test REST server.
+        app = web.Application()
+        url_part = authorize.handler.AUTHLISTREQUEST_API
+        app.router.add_get(url_part, self.request_handler)
+        app.router.add_post(authorize.handler.AUTHLISTREQUEST_API, self.request_handler)
+        app.router.add_put(
+            authorize.handler.AUTHLISTREQUEST_API + authorize.handler.ID_EXECUTE_PARAMS,
+            self.put_request_handler,
+        )
+        self.server = TestServer(app=app, port=5000)
+        await self.server.start_server()
+
+        # The expected result. This adjusted to be set in the course of the
+        # test case so the get_handler returns the expected response.
+        self.expected_rest_message: authorize.handler.RestMessageTypeList = []
+
+    async def request_handler(self, request: web.Request) -> web.Response:
+        """General handler coroutine for the test REST server."""
+        return web.json_response(self.expected_rest_message)
+
+    async def put_request_handler(self, request: web.Request) -> web.Response:
+        """PUT handler coroutine for the test REST server."""
+        request_id = int(request.match_info["request_id"])
+        response_dict = APPROVED_PROCESSED_AUTH_REQUESTS[request_id]
+        return web.json_response(response_dict)
+
+    async def asyncTearDown(self) -> None:
+        await self.server.close()
+
     def basic_make_csc(
         self,
         initial_state: salobj.State,
@@ -146,3 +189,61 @@ class AuthorizeTestCase(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTestCase
                     nonAuthorizedCSCs="_badCscName",
                     timeout=STD_TIMEOUT,
                 )
+
+    async def test_request_rest_authorization(self) -> None:
+        async with self.make_csc(
+            config_dir=TEST_CONFIG_DIR,
+            initial_state=salobj.State.ENABLED,
+            override="test_rest_config.yaml",
+        ), authorize.MinimalTestCsc(index=INDEX1) as csc1, authorize.MinimalTestCsc(
+            index=INDEX2
+        ) as csc2:
+            td = TEST_DATA[0]
+            self.expected_rest_message = PENDING_AUTH_REQUESTS[0].rest_messages
+            data = {
+                "cscsToChange": td.cscs_to_command,
+                "authorizedUsers": td.authorized_users,
+                "nonAuthorizedCSCs": td.non_authorized_cscs,
+                "timeout": STD_TIMEOUT,
+            }
+            await self.remote.cmd_requestAuthorization.set_start(**data)
+
+            # These should not have changed because the requests have been
+            # sent to the REST server and will not have been sent to the
+            # CSCs yet.
+            assert csc1.salinfo.authorized_users == set()
+            assert csc1.salinfo.non_authorized_cscs == set()
+            assert csc2.salinfo.authorized_users == set()
+            assert csc2.salinfo.non_authorized_cscs == set()
+
+            assert self.csc.authorize_handler.response == self.expected_rest_message
+
+    async def test_process_approved_and_unprocessed_auth_requests(self) -> None:
+        aar = APPROVED_AUTH_REQUESTS[0]
+        self.expected_rest_message = [aar.rest_messages[1]]
+
+        async with self.make_csc(
+            config_dir=TEST_CONFIG_DIR,
+            initial_state=salobj.State.ENABLED,
+            override="test_rest_config.yaml",
+        ), authorize.MinimalTestCsc(index=INDEX1) as csc1, authorize.MinimalTestCsc(
+            index=INDEX2
+        ) as csc2:
+
+            # Give time to the CSC to process the REST messages.
+            while csc1.salinfo.authorized_users == set():
+                await asyncio.sleep(0.5)
+
+            # These should not have changed because the requests have been
+            # sent to the REST server and will not have been sent to the
+            # CSCs yet.
+            assert csc1.salinfo.authorized_users == aar.expected_authorized_users[1]
+            assert (
+                csc1.salinfo.non_authorized_cscs == aar.expected_non_authorized_cscs[1]
+            )
+            assert csc2.salinfo.authorized_users == aar.expected_authorized_users[1]
+            assert (
+                csc2.salinfo.non_authorized_cscs == aar.expected_non_authorized_cscs[1]
+            )
+
+            assert self.csc.authorize_handler.response == self.expected_rest_message

@@ -1,4 +1,5 @@
 host: localhost
-port: 0
+port: 5000
 timeout_request_authorization: 60
 auto_authorization: false
+poll_interval: 10

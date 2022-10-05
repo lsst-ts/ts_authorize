@@ -178,3 +178,17 @@ class RestAuthorizeHandler(BaseAuthorizeHandler):
                                         f"but response execution message = {put_resp_exec_msg} != "
                                         f"request execution message {execution_message}"
                                     )
+
+    async def start(self, sleep_time: float) -> None:
+        # Make sure the task is not already running.
+        self.periodic_task.cancel()
+        # Now start the task.
+        self.periodic_task = asyncio.create_task(self.perform_periodic_task(sleep_time))
+
+    async def stop(self) -> None:
+        self.periodic_task.cancel()
+
+    async def perform_periodic_task(self, sleep_time: float) -> None:
+        while True:
+            await self.process_approved_and_unprocessed_auth_requests()
+            await asyncio.sleep(sleep_time)

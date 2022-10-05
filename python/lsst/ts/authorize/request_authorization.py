@@ -26,7 +26,7 @@ import asyncio
 
 from lsst.ts import salobj
 
-from .utils import check_csc, check_user_host
+from .handler_utils import check_csc, check_user_host
 
 
 def print_log_message(data: salobj.BaseMsgType) -> None:

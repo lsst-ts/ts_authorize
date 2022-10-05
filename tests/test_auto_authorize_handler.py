@@ -22,8 +22,8 @@
 import unittest
 from types import SimpleNamespace
 
-from auth_request_data import INDEX1, INDEX2, NON_EXISTENT_CSC, TEST_DATA
 from lsst.ts import authorize, salobj
+from lsst.ts.authorize.testutils import INDEX1, INDEX2, NON_EXISTENT_CSC, TEST_DATA
 
 
 class AutoAuthorizeHandlerTestCase(unittest.IsolatedAsyncioTestCase):

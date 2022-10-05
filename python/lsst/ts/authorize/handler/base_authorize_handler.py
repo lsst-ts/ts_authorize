@@ -21,13 +21,14 @@
 
 __all__ = ["BaseAuthorizeHandler"]
 
+import asyncio
 import logging
 import types
 from abc import ABC, abstractmethod
 
-from lsst.ts import salobj
+from lsst.ts import salobj, utils
 
-from .. import utils
+from .. import handler_utils
 
 # Timeout for sending setAuthList command (seconds)
 TIMEOUT_SET_AUTH_LIST = 5
@@ -54,6 +55,9 @@ class BaseAuthorizeHandler(ABC):
         # command succeeded. This is mostly for unit tests but it also helps to
         # avoid returning a tuple of a dict and a set.
         self.cscs_succeeded: set[str] = set()
+        # Task for polling the REST server when not running in auto
+        # authorization mode.
+        self.periodic_task: asyncio.Future = utils.make_done_future()
 
     @abstractmethod
     async def handle_authorize_request(
@@ -70,7 +74,7 @@ class BaseAuthorizeHandler(ABC):
         raise NotImplementedError
 
     async def process_authorize_request(
-        self, data: salobj.type_hints.BaseMsgType
+        self, data: salobj.type_hints.BaseMsgType | types.SimpleNamespace
     ) -> None:
         """Process an authorize request. Contact each CSC in the request and
         send the setAuthList command.
@@ -147,20 +151,35 @@ class BaseAuthorizeHandler(ABC):
             )
 
         for csc in cscs_to_command:
-            utils.check_csc(csc)
+            handler_utils.check_csc(csc)
 
         auth_users = data.authorizedUsers
         if auth_users:
             if auth_users[0] in ("+", "-"):
                 auth_users = auth_users[1:]
             for user in auth_users.split(","):
-                utils.check_user_host(user.strip())
+                handler_utils.check_user_host(user.strip())
 
         nonauth_cscs = data.nonAuthorizedCSCs
         if nonauth_cscs:
             if nonauth_cscs[0] in ("+", "-"):
                 nonauth_cscs = nonauth_cscs[1:]
             for csc in nonauth_cscs.split(","):
-                utils.check_csc(csc.strip())
+                handler_utils.check_csc(csc.strip())
 
         return cscs_to_command
+
+    async def start(self, sleep_time: float) -> None:
+        pass
+
+    async def stop(self) -> None:
+        pass
+
+    async def process_approved_and_unprocessed_auth_requests(
+        self,
+    ) -> None:
+        """Contact the REST server and request approved, unprocessed
+        authorization request. Then process those requests by contacting each
+        CSCs and sending the setAuthList command. Finally inform the REST
+        server of the outcome of those commands."""
+        raise NotImplementedError()

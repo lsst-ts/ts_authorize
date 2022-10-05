@@ -26,15 +26,9 @@ from lsst.ts import salobj
 
 from . import __version__
 from .config_schema import CONFIG_SCHEMA
-from .handler import AutoAuthorizeHandler, BaseAuthorizeHandler
+from .handler import AutoAuthorizeHandler, BaseAuthorizeHandler, RestAuthorizeHandler
 
 
-# TODO DM-36097: The RestAuthorizeHandler needs to be integrated with the CSC.
-#   This will require setting up a recurring task that retrieves the approved
-#   and unprocessed authorize requests, sending any incoming authorize
-#   requests to the REST server and sending statuses to the REST server of the
-#   authorize requests that have been approved and for which the corresponding
-#   CSCs have been sent cmd_setAuthList to.
 class Authorize(salobj.ConfigurableCsc):
     """Manage authorization requests.
 
@@ -84,7 +78,10 @@ class Authorize(salobj.ConfigurableCsc):
         # Handler for the authorize request.
         self.authorize_handler: None | BaseAuthorizeHandler = None
 
+        # Configuration items.
         self.config: None | types.SimpleNamespace = None
+        self.poll_interval: int = 1
+        self.timeout_request_authorization: int = 1
 
     async def configure(self, config: types.SimpleNamespace) -> None:
         """Configure CSC.
@@ -99,14 +96,16 @@ class Authorize(salobj.ConfigurableCsc):
             If `config.auto_authorization == False`.
         """
         self.config = config
+        self.poll_interval = config.poll_interval
+        self.timeout_request_authorization = config.timeout_request_authorization
 
         if self.config.auto_authorization:
             self.authorize_handler = AutoAuthorizeHandler(
                 domain=self.salinfo.domain, log=self.log
             )
         else:
-            raise NotImplementedError(
-                "Running in non-automatic authorization not implement yet."
+            self.authorize_handler = RestAuthorizeHandler(
+                domain=self.salinfo.domain, log=self.log, config=self.config
             )
 
     @staticmethod
@@ -123,17 +122,22 @@ class Authorize(salobj.ConfigurableCsc):
         data : ``cmd_requestAuthorization.DataType``
             Command data.
         """
-
         assert self.authorize_handler is not None
-        assert self.config is not None
-
         self.assert_enabled()
 
         await self.cmd_requestAuthorization.ack_in_progress(
-            data, timeout=self.config.timeout_request_authorization
+            data, timeout=self.timeout_request_authorization
         )
 
         await self.authorize_handler.handle_authorize_request(data=data)
+
+    async def handle_summary_state(self) -> None:
+        if self.summary_state == salobj.State.ENABLED:
+            assert self.authorize_handler is not None
+            await self.authorize_handler.start(self.poll_interval)
+        else:
+            if self.authorize_handler is not None:
+                await self.authorize_handler.stop()
 
 
 def run_authorize() -> None:

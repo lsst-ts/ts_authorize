@@ -24,14 +24,14 @@ import unittest
 
 from aiohttp import web
 from aiohttp.test_utils import TestServer
-from auth_request_data import (
+from lsst.ts import authorize, salobj
+from lsst.ts.authorize.testutils import (
     APPROVED_AUTH_REQUESTS,
     APPROVED_PROCESSED_AUTH_REQUESTS,
     INDEX1,
     INDEX2,
     PENDING_AUTH_REQUESTS,
 )
-from lsst.ts import authorize, salobj
 
 
 class RestAuthorizeHandlerTestCase(unittest.IsolatedAsyncioTestCase):
