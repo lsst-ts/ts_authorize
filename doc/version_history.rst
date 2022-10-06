@@ -12,9 +12,10 @@ v0.6.0
 * Add full MyPy support.
 * Modernize the pre-commit hooks.
 * Extract auto authorize code to separate class.
-* Started adding support for the LOVE REST API.
-  Work on this will continue in the ticket mentioned in the TODOs.
-  This bullet will be updated then as well and new bullets will be added.
+* Store success and failure info in instance variables for further processing.
+* Add a test utility for testing multiple scenarios.
+* Add support for the LOVE REST API.
+  The CSC polls the REST server on a regular basis and processes approved but unprocessed authorize requests.
 
 v0.5.0
 ------

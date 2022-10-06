@@ -19,7 +19,13 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-__all__ = ["RestAuthorizeHandler"]
+__all__ = [
+    "RestAuthorizeHandler",
+    "RestMessageType",
+    "RestMessageTypeList",
+    "AUTHLISTREQUEST_API",
+    "ID_EXECUTE_PARAMS",
+]
 
 import asyncio
 import logging
@@ -29,6 +35,14 @@ import aiohttp
 from lsst.ts import salobj
 
 from .base_authorize_handler import BaseAuthorizeHandler
+
+# Define data types for improved readability of the code.
+RestMessageType = dict[str, int | float | str]
+RestMessageTypeList = list[RestMessageType]
+
+AUTHLISTREQUEST_API = "/api/authlistrequest/"
+AUTHORIZED_PENDING_PARAMS = "?status=Authorized&execution_status=Pending"
+ID_EXECUTE_PARAMS = "{request_id}/execute"
 
 
 class RestAuthorizeHandler(BaseAuthorizeHandler):
@@ -69,9 +83,9 @@ class RestAuthorizeHandler(BaseAuthorizeHandler):
     ) -> None:
         super().__init__(domain=domain, log=log, config=config)
         assert self.config is not None
-        self.response: None | list[dict[str, int | float | str]] = None
+        self.response: None | RestMessageTypeList = None
         self.rest_url = (
-            f"http://{self.config.host}:{self.config.port}/api/authlistrequest/"
+            f"http://{self.config.host}:{self.config.port}" + AUTHLISTREQUEST_API
         )
         # Lock to prevent concurrent execution of GET and POST.
         self.lock = asyncio.Lock()
@@ -88,7 +102,7 @@ class RestAuthorizeHandler(BaseAuthorizeHandler):
         # Send a POST with the authorize request data. The reply received from
         # the REST server is not used and is stored for testing purposes.
         async with self.lock, aiohttp.ClientSession() as session:
-            async with session.get(
+            async with session.post(
                 self.rest_url,
                 json={
                     "cscs_to_change": cscs_to_change,
@@ -99,25 +113,82 @@ class RestAuthorizeHandler(BaseAuthorizeHandler):
             ) as resp:
                 self.response = await resp.json()
 
-    async def get_approved_and_unprocessed_auth_requests(
+    async def process_approved_and_unprocessed_auth_requests(
         self,
     ) -> None:
         """GET the approved and unprocessed authorize requests from the REST
-        server.
+        server and process them.
 
         These are authorize requests that have been approved by an
         operator and that have not been processed by this CSC yet.
         """
         async with self.lock, aiohttp.ClientSession() as session:
-            async with session.get(self.rest_url) as resp:
+            async with session.get(self.rest_url + AUTHORIZED_PENDING_PARAMS) as resp:
                 self.response = await resp.json()
-                assert self.response is not None
-                for response in self.response:
-                    data = types.SimpleNamespace(
-                        authorizedUsers=response["authorized_users"],
-                        cscsToChange=response["cscs_to_change"],
-                        nonAuthorizedCSCs=response["unauthorized_cscs"],
-                    )
-                    await self.process_authorize_request(data=data)
+                if self.response is not None:
+                    for response in self.response:
+                        data = types.SimpleNamespace(
+                            authorizedUsers=response["authorized_users"],
+                            cscsToChange=response["cscs_to_change"],
+                            nonAuthorizedCSCs=response["unauthorized_cscs"],
+                        )
+                        await self.process_authorize_request(data=data)
 
-                    # TODO DM-36097: Add sending feedback to the REST server.
+                        response_id = response["id"]
+                        execution_status = "Successful"
+                        execution_message = (
+                            "The following CSCs were updated correctly: "
+                            + ", ".join(sorted(self.cscs_succeeded))
+                            + "."
+                        )
+                        if len(self.csc_failed_messages) > 0:
+                            execution_status = "Failed"
+                            failed_message = (
+                                " The following CSCs failed to update correctly: "
+                                + ", ".join(sorted(self.csc_failed_messages.keys()))
+                                + "."
+                            )
+                            execution_message = execution_message + failed_message
+                        put_path = ID_EXECUTE_PARAMS.format(request_id=response_id)
+                        async with session.put(
+                            self.rest_url + put_path,
+                            json={
+                                "execution_status": execution_status,
+                                "execution_message": execution_message,
+                            },
+                        ) as put_resp:
+                            put_resp_json = await put_resp.json()
+                            put_resp_id = put_resp_json["id"]
+                            put_resp_exec_stat = put_resp_json["execution_status"]
+                            put_resp_exec_msg = put_resp_json["execution_message"]
+                            if put_resp_id != response_id:
+                                self.log.error(
+                                    f"Response id = {put_resp_id} != request id = {response_id}"
+                                )
+                            else:
+                                if put_resp_exec_stat != execution_status:
+                                    self.log.error(
+                                        f"Response id = {put_resp_id} == request id = {response_id} "
+                                        f"but response execution status = {put_resp_exec_stat} != "
+                                        f"request execution status {execution_status}"
+                                    )
+                                if put_resp_exec_msg != execution_message:
+                                    self.log.error(
+                                        f"Response id = {put_resp_id} == request id = {response_id} "
+                                        f"but response execution message = {put_resp_exec_msg} != "
+                                        f"request execution message {execution_message}"
+                                    )
+
+    async def start(self, sleep_time: float) -> None:
+        # Make sure the task is not already running.
+        self.periodic_task.cancel()
+        # Now start the task.
+        self.periodic_task = asyncio.create_task(self.perform_periodic_task(sleep_time))
+
+    async def stop(self) -> None:
+        self.periodic_task.cancel()
+
+    async def perform_periodic_task(self, sleep_time: float) -> None:
+        while True:
+            await self.process_approved_and_unprocessed_auth_requests()
+            await asyncio.sleep(sleep_time)

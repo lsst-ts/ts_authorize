@@ -21,13 +21,14 @@
 
 __all__ = ["BaseAuthorizeHandler"]
 
+import asyncio
 import logging
 import types
 from abc import ABC, abstractmethod
 
-from lsst.ts import salobj
+from lsst.ts import salobj, utils
 
-from .. import utils
+from .. import handler_utils
 
 # Timeout for sending setAuthList command (seconds)
 TIMEOUT_SET_AUTH_LIST = 5
@@ -46,6 +47,17 @@ class BaseAuthorizeHandler(ABC):
             self.log = logging.getLogger(type(self).__name__)
         self.domain = domain
         self.config = config
+        # Hold the names, indices and error messages for the CSC for which
+        # sending the autList command failed. This is mostly for unit tests but
+        # it also helps to avoid returning a tuple of a dict and a set.
+        self.csc_failed_messages: dict[str, str] = {}
+        # Hold the names and indices of the CSC for which sending the authList
+        # command succeeded. This is mostly for unit tests but it also helps to
+        # avoid returning a tuple of a dict and a set.
+        self.cscs_succeeded: set[str] = set()
+        # Task for polling the REST server when not running in auto
+        # authorization mode.
+        self.periodic_task: asyncio.Future = utils.make_done_future()
 
     @abstractmethod
     async def handle_authorize_request(
@@ -62,7 +74,7 @@ class BaseAuthorizeHandler(ABC):
         raise NotImplementedError
 
     async def process_authorize_request(
-        self, data: salobj.type_hints.BaseMsgType
+        self, data: salobj.type_hints.BaseMsgType | types.SimpleNamespace
     ) -> None:
         """Process an authorize request. Contact each CSC in the request and
         send the setAuthList command.
@@ -73,11 +85,6 @@ class BaseAuthorizeHandler(ABC):
             The data containing the authorize request as described in the
             corresponding xml file in ts_xml.
 
-        Raises
-        ------
-        RuntimeError
-            Raised in case at least one of the CSCs cannot be contacted.
-
         Notes
         -----
         All CSCs that can be contacted get changed, even if one or more CSCs
@@ -85,7 +92,11 @@ class BaseAuthorizeHandler(ABC):
         """
         cscs_to_command = await self.validate_request(data=data)
 
-        cscs_failed_to_set_auth_list = set()
+        # Reset these variables so they don't have a value left from previous
+        # calls to this function.
+        self.csc_failed_messages = {}
+        self.cscs_succeeded = set()
+
         for csc_name_index in cscs_to_command:
             csc_name, csc_index = salobj.name_to_name_index(csc_name_index)
             try:
@@ -104,20 +115,12 @@ class BaseAuthorizeHandler(ABC):
                         f"Set authList for {csc_name_index} to {data.authorizedUsers}"
                     )
             except salobj.AckError as e:
-                cscs_failed_to_set_auth_list.update({csc_name_index})
+                self.csc_failed_messages[csc_name_index] = e.args[0]
                 self.log.warning(
                     f"Failed to set authList for {csc_name_index}: {e.args[0]}"
                 )
 
-        # TODO DM-36097: Process the failure to set auth list for one or more
-        #  CSCs in a way that allows for providing feedback to the REST server
-        #  if that is used.
-        if len(cscs_failed_to_set_auth_list) > 0:
-            raise RuntimeError(
-                f"Failed to set authList for the following CSCs: {cscs_failed_to_set_auth_list}. "
-                "The following CSCs were successfully updated: "
-                f"{cscs_to_command - cscs_failed_to_set_auth_list}"
-            )
+        self.cscs_succeeded = cscs_to_command - self.csc_failed_messages.keys()
 
     async def validate_request(self, data: salobj.type_hints.BaseMsgType) -> set[str]:
         """Validate a requestAuthorization command by checking the input
@@ -148,20 +151,35 @@ class BaseAuthorizeHandler(ABC):
             )
 
         for csc in cscs_to_command:
-            utils.check_csc(csc)
+            handler_utils.check_csc(csc)
 
         auth_users = data.authorizedUsers
         if auth_users:
             if auth_users[0] in ("+", "-"):
                 auth_users = auth_users[1:]
             for user in auth_users.split(","):
-                utils.check_user_host(user.strip())
+                handler_utils.check_user_host(user.strip())
 
         nonauth_cscs = data.nonAuthorizedCSCs
         if nonauth_cscs:
             if nonauth_cscs[0] in ("+", "-"):
                 nonauth_cscs = nonauth_cscs[1:]
             for csc in nonauth_cscs.split(","):
-                utils.check_csc(csc.strip())
+                handler_utils.check_csc(csc.strip())
 
         return cscs_to_command
+
+    async def start(self, sleep_time: float) -> None:
+        pass
+
+    async def stop(self) -> None:
+        pass
+
+    async def process_approved_and_unprocessed_auth_requests(
+        self,
+    ) -> None:
+        """Contact the REST server and request approved, unprocessed
+        authorization request. Then process those requests by contacting each
+        CSCs and sending the setAuthList command. Finally inform the REST
+        server of the outcome of those commands."""
+        raise NotImplementedError()

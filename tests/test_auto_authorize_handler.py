@@ -23,6 +23,7 @@ import unittest
 from types import SimpleNamespace
 
 from lsst.ts import authorize, salobj
+from lsst.ts.authorize.testutils import INDEX1, INDEX2, NON_EXISTENT_CSC, TEST_DATA
 
 
 class AutoAuthorizeHandlerTestCase(unittest.IsolatedAsyncioTestCase):
@@ -31,44 +32,33 @@ class AutoAuthorizeHandlerTestCase(unittest.IsolatedAsyncioTestCase):
         domain = salobj.Domain()
         handler = authorize.handler.AutoAuthorizeHandler(domain=domain)
 
-        index1 = 5
-        index2 = 52
         async with authorize.MinimalTestCsc(
-            index=index1
-        ) as csc1, authorize.MinimalTestCsc(index=index2) as csc2:
+            index=INDEX1
+        ) as csc1, authorize.MinimalTestCsc(index=INDEX2) as csc2:
             assert csc1.salinfo.authorized_users == set()
             assert csc1.salinfo.non_authorized_cscs == set()
             assert csc2.salinfo.authorized_users == set()
             assert csc2.salinfo.non_authorized_cscs == set()
 
-            # Change the first Test CSC
-            desired_users = {"sal@purview", "woof@123.456"}
-            desired_cscs = {"Foo", "Bar:1", "XKCD:47"}
-            data = SimpleNamespace(
-                cscsToChange=f"Test:{index1}",
-                authorizedUsers=", ".join(desired_users),
-                nonAuthorizedCSCs=", ".join(desired_cscs),
-            )
-            await handler.handle_authorize_request(data=data)
-            assert csc1.salinfo.authorized_users == desired_users
-            assert csc1.salinfo.non_authorized_cscs == desired_cscs
-            assert csc2.salinfo.authorized_users == set()
-            assert csc2.salinfo.non_authorized_cscs == set()
-
-            # Change both Test CSCs
-            desired_users = {"meow@validate", "v122s@123"}
-            desired_cscs = {"AT", "seisen:22"}
-            # Include a CSC that does not exist. The handler will try to
-            # change it, that will time out, command will fail but other CSCs
-            # will be set.
-            data = SimpleNamespace(
-                cscsToChange=f"Test:{index1}, Test:999, Test:{index2}",
-                authorizedUsers=", ".join(desired_users),
-                nonAuthorizedCSCs=", ".join(desired_cscs),
-            )
-            with self.assertRaises(RuntimeError):
-                await handler.handle_authorize_request(data=data)
-            assert csc1.salinfo.authorized_users == desired_users
-            assert csc1.salinfo.non_authorized_cscs == desired_cscs
-            assert csc2.salinfo.authorized_users == desired_users
-            assert csc2.salinfo.non_authorized_cscs == desired_cscs
+            for td in TEST_DATA:
+                data = SimpleNamespace(
+                    cscsToChange=td.cscs_to_command,
+                    authorizedUsers=td.authorized_users,
+                    nonAuthorizedCSCs=td.non_authorized_cscs,
+                )
+                if NON_EXISTENT_CSC in td.cscs_to_command:
+                    with self.assertRaises(RuntimeError):
+                        await handler.handle_authorize_request(data=data)
+                else:
+                    await handler.handle_authorize_request(data=data)
+                assert csc1.salinfo.authorized_users == td.expected_authorized_users[0]
+                assert (
+                    csc1.salinfo.non_authorized_cscs
+                    == td.expected_non_authorized_cscs[0]
+                )
+                assert csc2.salinfo.authorized_users == td.expected_authorized_users[1]
+                assert (
+                    csc2.salinfo.non_authorized_cscs
+                    == td.expected_non_authorized_cscs[1]
+                )
+                assert handler.csc_failed_messages.keys() == td.expected_failed_cscs
