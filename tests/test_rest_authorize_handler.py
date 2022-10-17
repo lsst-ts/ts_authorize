@@ -126,12 +126,12 @@ class RestAuthorizeHandlerTestCase(unittest.IsolatedAsyncioTestCase):
     async def test_handle_authorize_request(self) -> None:
         for pending_auth_request in PENDING_AUTH_REQUESTS:
             self.expected_rest_message = pending_auth_request.rest_messages
-            data = types.SimpleNamespace(
-                authorizedUsers=pending_auth_request.rest_messages[0][
+            data = authorize.AuthRequestData(
+                authorized_users=pending_auth_request.rest_messages[0][
                     "authorized_users"
                 ],
-                cscsToChange=pending_auth_request.rest_messages[0]["cscs_to_change"],
-                nonAuthorizedCSCs=pending_auth_request.rest_messages[0][
+                cscs_to_change=pending_auth_request.rest_messages[0]["cscs_to_change"],
+                non_authorized_cscs=pending_auth_request.rest_messages[0][
                     "unauthorized_cscs"
                 ],
                 private_identity="RestAuthorizeHandlerTestCase",

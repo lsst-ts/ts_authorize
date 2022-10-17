@@ -134,12 +134,12 @@ class AuthorizeTestCase(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTestCase
 
             for td in TEST_DATA:
                 data = {
-                    "cscsToChange": td.cscs_to_command,
-                    "authorizedUsers": td.authorized_users,
-                    "nonAuthorizedCSCs": td.non_authorized_cscs,
+                    "cscsToChange": td.auth_request_data.cscs_to_change,
+                    "authorizedUsers": td.auth_request_data.authorized_users,
+                    "nonAuthorizedCSCs": td.auth_request_data.non_authorized_cscs,
                     "timeout": STD_TIMEOUT,
                 }
-                if NON_EXISTENT_CSC in td.cscs_to_command:
+                if NON_EXISTENT_CSC in td.auth_request_data.cscs_to_change:
                     with salobj.assertRaisesAckError():
                         await self.remote.cmd_requestAuthorization.set_start(**data)
                 else:
@@ -201,9 +201,9 @@ class AuthorizeTestCase(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTestCase
             td = TEST_DATA[0]
             self.expected_rest_message = PENDING_AUTH_REQUESTS[0].rest_messages
             data = {
-                "cscsToChange": td.cscs_to_command,
-                "authorizedUsers": td.authorized_users,
-                "nonAuthorizedCSCs": td.non_authorized_cscs,
+                "cscsToChange": td.auth_request_data.cscs_to_change,
+                "authorizedUsers": td.auth_request_data.authorized_users,
+                "nonAuthorizedCSCs": td.auth_request_data.non_authorized_cscs,
                 "timeout": STD_TIMEOUT,
             }
             await self.remote.cmd_requestAuthorization.set_start(**data)

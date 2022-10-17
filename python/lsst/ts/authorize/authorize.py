@@ -27,6 +27,7 @@ from lsst.ts import salobj
 from . import __version__
 from .config_schema import CONFIG_SCHEMA
 from .handler import AutoAuthorizeHandler, BaseAuthorizeHandler, RestAuthorizeHandler
+from .handler_utils import AuthRequestData
 
 
 class Authorize(salobj.ConfigurableCsc):
@@ -129,7 +130,8 @@ class Authorize(salobj.ConfigurableCsc):
             data, timeout=self.timeout_request_authorization
         )
 
-        await self.authorize_handler.handle_authorize_request(data=data)
+        auth_request_data = AuthRequestData.from_auth_data(data)
+        await self.authorize_handler.handle_authorize_request(data=auth_request_data)
 
     async def handle_summary_state(self) -> None:
         if self.summary_state == salobj.State.ENABLED:

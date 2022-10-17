@@ -19,12 +19,43 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-__all__ = ["check_csc", "check_user_host"]
+from __future__ import annotations
 
 import re
+from dataclasses import dataclass
+from enum import Enum
+
+from lsst.ts import salobj
+
+__all__ = ["AuthRequestData", "ExecutionStatus", "check_csc", "check_user_host"]
 
 CSC_NAME_INDEX_RE = re.compile(r"^[a-zA-Z][_A-Za-z0-9]*(:\d+)?$")
 USER_HOST_RE = re.compile(r"^[a-zA-Z][-._A-Za-z0-9]*@[a-zA-Z0-9][-._A-Za-z0-9]*$")
+
+
+@dataclass
+class AuthRequestData:
+    """DataClass representing data for auth requests."""
+
+    authorized_users: str
+    cscs_to_change: str
+    non_authorized_cscs: str
+    private_identity: str
+
+    @classmethod
+    def from_auth_data(cls, data: salobj.type_hints.BaseMsgType) -> AuthRequestData:
+        return cls(
+            authorized_users=data.authorizedUsers,
+            cscs_to_change=data.cscsToChange,
+            non_authorized_cscs=data.nonAuthorizedCSCs,
+            private_identity=data.private_identity,
+        )
+
+
+class ExecutionStatus(str, Enum):
+    FAILED = "Failed"
+    PENDING = "Pending"
+    SUCCESSFUL = "Successful"
 
 
 # TODO DM-36097: Check against a list of known CSCs and change to checking a

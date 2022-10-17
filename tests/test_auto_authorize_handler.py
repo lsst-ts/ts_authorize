@@ -20,7 +20,6 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import unittest
-from types import SimpleNamespace
 
 from lsst.ts import authorize, salobj
 from lsst.ts.authorize.testutils import INDEX1, INDEX2, NON_EXISTENT_CSC, TEST_DATA
@@ -41,12 +40,13 @@ class AutoAuthorizeHandlerTestCase(unittest.IsolatedAsyncioTestCase):
             assert csc2.salinfo.non_authorized_cscs == set()
 
             for td in TEST_DATA:
-                data = SimpleNamespace(
-                    cscsToChange=td.cscs_to_command,
-                    authorizedUsers=td.authorized_users,
-                    nonAuthorizedCSCs=td.non_authorized_cscs,
+                data = authorize.AuthRequestData(
+                    cscs_to_change=td.auth_request_data.cscs_to_change,
+                    authorized_users=td.auth_request_data.authorized_users,
+                    non_authorized_cscs=td.auth_request_data.non_authorized_cscs,
+                    private_identity=td.auth_request_data.private_identity,
                 )
-                if NON_EXISTENT_CSC in td.cscs_to_command:
+                if NON_EXISTENT_CSC in td.auth_request_data.cscs_to_change:
                     with self.assertRaises(RuntimeError):
                         await handler.handle_authorize_request(data=data)
                 else:

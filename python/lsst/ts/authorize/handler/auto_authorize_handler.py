@@ -21,15 +21,12 @@
 
 __all__ = ["AutoAuthorizeHandler"]
 
-from lsst.ts import salobj
-
+from ..handler_utils import AuthRequestData
 from .base_authorize_handler import BaseAuthorizeHandler
 
 
 class AutoAuthorizeHandler(BaseAuthorizeHandler):
-    async def handle_authorize_request(
-        self, data: salobj.type_hints.BaseMsgType
-    ) -> None:
+    async def handle_authorize_request(self, data: AuthRequestData) -> None:
         """Handle an authorize request. Contact each CSC in the request and
         send the setAuthList command.
 

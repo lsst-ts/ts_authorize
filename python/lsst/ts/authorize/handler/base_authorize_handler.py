@@ -28,7 +28,7 @@ from abc import ABC, abstractmethod
 
 from lsst.ts import salobj, utils
 
-from .. import handler_utils
+from ..handler_utils import AuthRequestData, check_csc, check_user_host
 
 # Timeout for sending setAuthList command (seconds)
 TIMEOUT_SET_AUTH_LIST = 5
@@ -60,28 +60,24 @@ class BaseAuthorizeHandler(ABC):
         self.periodic_task: asyncio.Future = utils.make_done_future()
 
     @abstractmethod
-    async def handle_authorize_request(
-        self, data: salobj.type_hints.BaseMsgType
-    ) -> None:
+    async def handle_authorize_request(self, data: AuthRequestData) -> None:
         """Handle an authorize request.
 
         Parameters
         ----------
-        data : `salobj.type_hints.BaseMsgType`
+        data : `AuthRequestData`
             The data containing the authorize request as described in the
             corresponding xml file in ts_xml.
         """
         raise NotImplementedError
 
-    async def process_authorize_request(
-        self, data: salobj.type_hints.BaseMsgType | types.SimpleNamespace
-    ) -> None:
+    async def process_authorize_request(self, data: AuthRequestData) -> None:
         """Process an authorize request. Contact each CSC in the request and
         send the setAuthList command.
 
         Parameters
         ----------
-        data : `salobj.type_hints.BaseMsgType`
+        data : `AuthRequestData`
             The data containing the authorize request as described in the
             corresponding xml file in ts_xml.
 
@@ -107,12 +103,12 @@ class BaseAuthorizeHandler(ABC):
                     include=[],
                 ) as remote:
                     await remote.cmd_setAuthList.set_start(
-                        authorizedUsers=data.authorizedUsers,
-                        nonAuthorizedCSCs=data.nonAuthorizedCSCs,
+                        authorizedUsers=data.authorized_users,
+                        nonAuthorizedCSCs=data.non_authorized_cscs,
                         timeout=TIMEOUT_SET_AUTH_LIST,
                     )
                     self.log.info(
-                        f"Set authList for {csc_name_index} to {data.authorizedUsers}"
+                        f"Set authList for {csc_name_index} to {data.authorized_users}"
                     )
             except salobj.AckError as e:
                 self.csc_failed_messages[csc_name_index] = e.args[0]
@@ -122,13 +118,13 @@ class BaseAuthorizeHandler(ABC):
 
         self.cscs_succeeded = cscs_to_command - self.csc_failed_messages.keys()
 
-    async def validate_request(self, data: salobj.type_hints.BaseMsgType) -> set[str]:
+    async def validate_request(self, data: AuthRequestData) -> set[str]:
         """Validate a requestAuthorization command by checking the input
         integrity.
 
         Parameters
         ----------
-        data : ``cmd_requestAuthorization.DataType``
+        data : `AuthRequestData`
             Command data.
 
         Returns
@@ -144,28 +140,28 @@ class BaseAuthorizeHandler(ABC):
         """
 
         # Check values
-        cscs_to_command = {val.strip() for val in data.cscsToChange.split(",")}
+        cscs_to_command = {val.strip() for val in data.cscs_to_change.split(",")}
         if not cscs_to_command:
             raise salobj.ExpectedError(
                 "No CSCs specified in cscsToChange; command has no effect."
             )
 
         for csc in cscs_to_command:
-            handler_utils.check_csc(csc)
+            check_csc(csc)
 
-        auth_users = data.authorizedUsers
+        auth_users = data.authorized_users
         if auth_users:
             if auth_users[0] in ("+", "-"):
                 auth_users = auth_users[1:]
             for user in auth_users.split(","):
-                handler_utils.check_user_host(user.strip())
+                check_user_host(user.strip())
 
-        nonauth_cscs = data.nonAuthorizedCSCs
+        nonauth_cscs = data.non_authorized_cscs
         if nonauth_cscs:
             if nonauth_cscs[0] in ("+", "-"):
                 nonauth_cscs = nonauth_cscs[1:]
             for csc in nonauth_cscs.split(","):
-                handler_utils.check_csc(csc.strip())
+                check_csc(csc.strip())
 
         return cscs_to_command
 
