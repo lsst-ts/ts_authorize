@@ -47,8 +47,16 @@ class AutoAuthorizeHandlerTestCase(unittest.IsolatedAsyncioTestCase):
                     private_identity=td.auth_request_data.private_identity,
                 )
                 if NON_EXISTENT_CSC in td.auth_request_data.cscs_to_change:
-                    with self.assertRaises(RuntimeError):
+                    with self.assertRaises(RuntimeError) as error:
                         await handler.handle_authorize_request(data=data)
+                    cscs_to_command = {
+                        val.strip() for val in data.cscs_to_change.split(",")
+                    }
+                    expected_message = authorize.create_failed_error_message(
+                        csc_failed_messages=td.expected_failed_cscs,
+                        cscs_succeeded=cscs_to_command - td.expected_failed_cscs.keys(),
+                    )
+                    self.assertEqual(str(error.exception), expected_message)
                 else:
                     await handler.handle_authorize_request(data=data)
                 assert csc1.salinfo.authorized_users == td.expected_authorized_users[0]
@@ -61,4 +69,3 @@ class AutoAuthorizeHandlerTestCase(unittest.IsolatedAsyncioTestCase):
                     csc2.salinfo.non_authorized_cscs
                     == td.expected_non_authorized_cscs[1]
                 )
-                assert handler.csc_failed_messages.keys() == td.expected_failed_cscs

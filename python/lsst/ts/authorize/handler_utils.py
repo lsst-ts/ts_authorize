@@ -27,7 +27,13 @@ from enum import Enum
 
 from lsst.ts import salobj
 
-__all__ = ["AuthRequestData", "ExecutionStatus", "check_csc", "check_user_host"]
+__all__ = [
+    "AuthRequestData",
+    "ExecutionStatus",
+    "check_csc",
+    "check_user_host",
+    "create_failed_error_message",
+]
 
 CSC_NAME_INDEX_RE = re.compile(r"^[a-zA-Z][_A-Za-z0-9]*(:\d+)?$")
 USER_HOST_RE = re.compile(r"^[a-zA-Z][-._A-Za-z0-9]*@[a-zA-Z0-9][-._A-Za-z0-9]*$")
@@ -96,3 +102,27 @@ def check_user_host(user_host: str) -> str:
     if USER_HOST_RE.match(user_host):
         return user_host
     raise ValueError(f"Invalid user@host: {user_host!r}")
+
+
+def create_failed_error_message(
+    csc_failed_messages: dict[str, str], cscs_succeeded: set[str]
+) -> str:
+    """Create a message string containing the failed messages and succeeded
+    CSC names.
+
+    Parameters
+    ----------
+    csc_failed_messages : `dict` of `str`
+        The failed messages.
+    cscs_succeeded : `set` of `str`
+        The succeeded CSC names.
+
+    Returns
+    -------
+    str
+        The message string.
+    """
+    return (
+        f"Failed to set authList for one or more CSCs: {csc_failed_messages}. "
+        f"The following CSCs were successfully updated: {cscs_succeeded}."
+    )

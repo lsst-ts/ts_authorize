@@ -47,14 +47,6 @@ class BaseAuthorizeHandler(ABC):
             self.log = logging.getLogger(type(self).__name__)
         self.domain = domain
         self.config = config
-        # Hold the names, indices and error messages for the CSC for which
-        # sending the autList command failed. This is mostly for unit tests but
-        # it also helps to avoid returning a tuple of a dict and a set.
-        self.csc_failed_messages: dict[str, str] = {}
-        # Hold the names and indices of the CSC for which sending the authList
-        # command succeeded. This is mostly for unit tests but it also helps to
-        # avoid returning a tuple of a dict and a set.
-        self.cscs_succeeded: set[str] = set()
         # Task for polling the REST server when not running in auto
         # authorization mode.
         self.periodic_task: asyncio.Future = utils.make_done_future()
@@ -71,7 +63,9 @@ class BaseAuthorizeHandler(ABC):
         """
         raise NotImplementedError
 
-    async def process_authorize_request(self, data: AuthRequestData) -> None:
+    async def process_authorize_request(
+        self, data: AuthRequestData
+    ) -> tuple[dict[str, str], set[str]]:
         """Process an authorize request. Contact each CSC in the request and
         send the setAuthList command.
 
@@ -90,8 +84,8 @@ class BaseAuthorizeHandler(ABC):
 
         # Reset these variables so they don't have a value left from previous
         # calls to this function.
-        self.csc_failed_messages = {}
-        self.cscs_succeeded = set()
+        csc_failed_messages: dict[str, str] = {}
+        cscs_succeeded: set[str] = set()
 
         for csc_name_index in cscs_to_command:
             csc_name, csc_index = salobj.name_to_name_index(csc_name_index)
@@ -111,12 +105,13 @@ class BaseAuthorizeHandler(ABC):
                         f"Set authList for {csc_name_index} to {data.authorized_users}"
                     )
             except salobj.AckError as e:
-                self.csc_failed_messages[csc_name_index] = e.args[0]
+                csc_failed_messages[csc_name_index] = e.args[0]
                 self.log.warning(
                     f"Failed to set authList for {csc_name_index}: {e.args[0]}"
                 )
 
-        self.cscs_succeeded = cscs_to_command - self.csc_failed_messages.keys()
+        cscs_succeeded = cscs_to_command - csc_failed_messages.keys()
+        return csc_failed_messages, cscs_succeeded
 
     async def validate_request(self, data: AuthRequestData) -> set[str]:
         """Validate a requestAuthorization command by checking the input

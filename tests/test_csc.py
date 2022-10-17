@@ -230,8 +230,11 @@ class AuthorizeTestCase(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTestCase
             index=INDEX2
         ) as csc2:
 
-            # Give time to the CSC to process the REST messages.
-            while csc1.salinfo.authorized_users == set():
+            # Give time to the CSCs to process the REST messages.
+            while (
+                csc1.salinfo.authorized_users == set()
+                or csc2.salinfo.authorized_users == set()
+            ):
                 await asyncio.sleep(0.5)
 
             # These should not have changed because the requests have been

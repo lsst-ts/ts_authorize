@@ -61,9 +61,14 @@ class RestAuthorizeHandlerTestCase(unittest.IsolatedAsyncioTestCase):
         self.server = TestServer(app=app, port=5000)
         await self.server.start_server()
 
-        # The expected result. This adjusted to be set in the course of the
-        # test case so the get_handler returns the expected response.
+        # The expected result, to updated in the course of the test case.
         self.expected_rest_message: authorize.handler.RestMessageTypeList = []
+        # The expected execution status, to updated in the course of the test
+        # case.
+        self.expected_execution_status = authorize.ExecutionStatus.PENDING
+        # The expected execution message, to updated in the course of the test
+        # case.
+        self.expected_execution_message = ""
 
     async def request_handler(self, request: web.Request) -> web.Response:
         """General handler coroutine for the test REST server."""
@@ -73,6 +78,11 @@ class RestAuthorizeHandlerTestCase(unittest.IsolatedAsyncioTestCase):
         """PUT handler coroutine for the test REST server."""
         request_id = int(request.match_info["request_id"])
         response_dict = APPROVED_PROCESSED_AUTH_REQUESTS[request_id]
+        req_json = await request.json()
+        self.expected_execution_status = authorize.ExecutionStatus(
+            req_json["execution_status"]
+        )
+        self.expected_execution_message = req_json["execution_message"]
         return web.json_response(response_dict)
 
     async def asyncTearDown(self) -> None:
@@ -120,7 +130,16 @@ class RestAuthorizeHandlerTestCase(unittest.IsolatedAsyncioTestCase):
                     == aar.expected_non_authorized_cscs[1]
                 )
                 assert (
-                    self.handler.csc_failed_messages.keys() == aar.expected_failed_cscs
+                    self.expected_execution_status
+                    == APPROVED_PROCESSED_AUTH_REQUESTS[aar.rest_messages[-1]["id"]][
+                        "execution_status"
+                    ]
+                )
+                assert (
+                    self.expected_execution_message
+                    == APPROVED_PROCESSED_AUTH_REQUESTS[aar.rest_messages[-1]["id"]][
+                        "execution_message"
+                    ]
                 )
 
     async def test_handle_authorize_request(self) -> None:

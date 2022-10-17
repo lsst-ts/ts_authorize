@@ -21,7 +21,7 @@
 
 __all__ = ["AutoAuthorizeHandler"]
 
-from ..handler_utils import AuthRequestData
+from ..handler_utils import AuthRequestData, create_failed_error_message
 from .base_authorize_handler import BaseAuthorizeHandler
 
 
@@ -46,10 +46,14 @@ class AutoAuthorizeHandler(BaseAuthorizeHandler):
         All CSCs that can be contacted get changed, even if one or more CSCs
         cannot be contacted.
         """
-        await self.process_authorize_request(data=data)
+        csc_failed_messages, cscs_succeeded = await self.process_authorize_request(
+            data=data
+        )
 
-        if len(self.csc_failed_messages) > 0:
+        if len(csc_failed_messages) > 0:
             raise RuntimeError(
-                f"Failed to set authList for the following CSCs: {self.csc_failed_messages}. "
-                f"The following CSCs were successfully updated: {self.cscs_succeeded}."
+                create_failed_error_message(
+                    csc_failed_messages=csc_failed_messages,
+                    cscs_succeeded=cscs_succeeded,
+                )
             )

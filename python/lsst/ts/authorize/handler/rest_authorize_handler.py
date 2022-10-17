@@ -128,20 +128,23 @@ class RestAuthorizeHandler(BaseAuthorizeHandler):
                             non_authorized_cscs=str(response["unauthorized_cscs"]),
                             private_identity=str(response["requested_by"]),
                         )
-                        await self.process_authorize_request(data=data)
+                        (
+                            csc_failed_messages,
+                            cscs_succeeded,
+                        ) = await self.process_authorize_request(data=data)
 
                         response_id = response["id"]
                         execution_status = ExecutionStatus.SUCCESSFUL
                         execution_message = (
                             "The following CSCs were updated correctly: "
-                            + ", ".join(sorted(self.cscs_succeeded))
+                            + ", ".join(sorted(cscs_succeeded))
                             + "."
                         )
-                        if len(self.csc_failed_messages) > 0:
+                        if len(csc_failed_messages) > 0:
                             execution_status = ExecutionStatus.FAILED
                             failed_message = (
                                 " The following CSCs failed to update correctly: "
-                                + ", ".join(sorted(self.csc_failed_messages.keys()))
+                                + ", ".join(sorted(csc_failed_messages.keys()))
                                 + "."
                             )
                             execution_message = execution_message + failed_message

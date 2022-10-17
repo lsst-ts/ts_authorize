@@ -61,7 +61,7 @@ class AuthRequestTestData:
     auth_request_data: AuthRequestData
     expected_authorized_users: list[set[str]]
     expected_non_authorized_cscs: list[set[str]]
-    expected_failed_cscs: set[str]
+    expected_failed_cscs: dict[str, str]
 
 
 @dataclass
@@ -131,7 +131,7 @@ class RestMessageData:
     rest_messages: RestMessageTypeList
     expected_authorized_users: list[set[str]]
     expected_non_authorized_cscs: list[set[str]]
-    expected_failed_cscs: set[str]
+    expected_failed_cscs: dict[str, str]
 
 
 TEST_DATA = [
@@ -146,7 +146,7 @@ TEST_DATA = [
         ),
         expected_authorized_users=[TEST_USERS_1, set()],
         expected_non_authorized_cscs=[TEST_CSCS_1, set()],
-        expected_failed_cscs=set(),
+        expected_failed_cscs={},
     ),
     # A set of authorized users and non-authorized CSCs to be sent to two CSCs.
     # Since no "+" or "-" are present, the existing authorized users and
@@ -160,7 +160,9 @@ TEST_DATA = [
         ),
         expected_authorized_users=[TEST_USERS_2, TEST_USERS_2],
         expected_non_authorized_cscs=[TEST_CSCS_2, TEST_CSCS_2],
-        expected_failed_cscs={NON_EXISTENT_CSC},
+        expected_failed_cscs={
+            NON_EXISTENT_CSC: "Timed out waiting for command acknowledgement"
+        },
     ),
     # Here we use a "+" for both the authorized users and the non-authorized
     # CSCs, meaning that they get added to the existing sets.
@@ -173,7 +175,7 @@ TEST_DATA = [
         ),
         expected_authorized_users=[JOINED_TEST_USERS, JOINED_TEST_USERS],
         expected_non_authorized_cscs=[JOINED_TEST_CSCS, JOINED_TEST_CSCS],
-        expected_failed_cscs=set(),
+        expected_failed_cscs={},
     ),
     # Here we use a "-" for both the authorized users and the non-authorized
     # CSCs, meaning that they get removed from the existing sets.
@@ -186,7 +188,7 @@ TEST_DATA = [
         ),
         expected_authorized_users=[REMAINING_USERS, REMAINING_USERS],
         expected_non_authorized_cscs=[REMAINING_CSCS, REMAINING_CSCS],
-        expected_failed_cscs=set(),
+        expected_failed_cscs={},
     ),
 ]
 
