@@ -24,12 +24,9 @@ import pathlib
 import typing
 import unittest
 
-from aiohttp import web
-from aiohttp.test_utils import TestServer
 from lsst.ts import authorize, salobj
 from lsst.ts.authorize.testutils import (
     APPROVED_AUTH_REQUESTS,
-    APPROVED_PROCESSED_AUTH_REQUESTS,
     INDEX1,
     INDEX2,
     NON_EXISTENT_CSC,
@@ -49,33 +46,11 @@ class AuthorizeTestCase(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTestCase
         await super().asyncSetUp()
 
         # Setup the test REST server.
-        app = web.Application()
-        url_part = authorize.handler.AUTHLISTREQUEST_API
-        app.router.add_get(url_part, self.request_handler)
-        app.router.add_post(authorize.handler.AUTHLISTREQUEST_API, self.request_handler)
-        app.router.add_put(
-            authorize.handler.AUTHLISTREQUEST_API + authorize.handler.ID_EXECUTE_PARAMS,
-            self.put_request_handler,
-        )
-        self.server = TestServer(app=app, port=5000)
-        await self.server.start_server()
-
-        # The expected result. This adjusted to be set in the course of the
-        # test case so the get_handler returns the expected response.
-        self.expected_rest_message: authorize.handler.RestMessageTypeList = []
-
-    async def request_handler(self, request: web.Request) -> web.Response:
-        """General handler coroutine for the test REST server."""
-        return web.json_response(self.expected_rest_message)
-
-    async def put_request_handler(self, request: web.Request) -> web.Response:
-        """PUT handler coroutine for the test REST server."""
-        request_id = int(request.match_info["request_id"])
-        response_dict = APPROVED_PROCESSED_AUTH_REQUESTS[request_id]
-        return web.json_response(response_dict)
+        self.mock_web_server = authorize.MockWebServer()
+        await self.mock_web_server.server.start_server()
 
     async def asyncTearDown(self) -> None:
-        await self.server.close()
+        await self.mock_web_server.server.close()
 
     def basic_make_csc(
         self,
@@ -199,7 +174,9 @@ class AuthorizeTestCase(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTestCase
             index=INDEX2
         ) as csc2:
             td = TEST_DATA[0]
-            self.expected_rest_message = PENDING_AUTH_REQUESTS[0].rest_messages
+            self.mock_web_server.expected_rest_message = PENDING_AUTH_REQUESTS[
+                0
+            ].rest_messages
             data = {
                 "cscsToChange": td.auth_request_data.cscs_to_change,
                 "authorizedUsers": td.auth_request_data.authorized_users,
@@ -216,11 +193,14 @@ class AuthorizeTestCase(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTestCase
             assert csc2.salinfo.authorized_users == set()
             assert csc2.salinfo.non_authorized_cscs == set()
 
-            assert self.csc.authorize_handler.response == self.expected_rest_message
+            assert (
+                self.csc.authorize_handler.response
+                == self.mock_web_server.expected_rest_message
+            )
 
     async def test_process_approved_and_unprocessed_auth_requests(self) -> None:
         aar = APPROVED_AUTH_REQUESTS[0]
-        self.expected_rest_message = [aar.rest_messages[1]]
+        self.mock_web_server.expected_rest_message = [aar.rest_messages[1]]
 
         async with self.make_csc(
             config_dir=TEST_CONFIG_DIR,
@@ -249,4 +229,7 @@ class AuthorizeTestCase(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTestCase
                 csc2.salinfo.non_authorized_cscs == aar.expected_non_authorized_cscs[1]
             )
 
-            assert self.csc.authorize_handler.response == self.expected_rest_message
+            assert (
+                self.csc.authorize_handler.response
+                == self.mock_web_server.expected_rest_message
+            )

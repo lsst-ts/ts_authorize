@@ -22,8 +22,6 @@
 import types
 import unittest
 
-from aiohttp import web
-from aiohttp.test_utils import TestServer
 from lsst.ts import authorize, salobj
 from lsst.ts.authorize.testutils import (
     APPROVED_AUTH_REQUESTS,
@@ -50,43 +48,11 @@ class RestAuthorizeHandlerTestCase(unittest.IsolatedAsyncioTestCase):
         )
 
         # Setup the test REST server.
-        app = web.Application()
-        url_part = authorize.handler.AUTHLISTREQUEST_API
-        app.router.add_get(url_part, self.request_handler)
-        app.router.add_post(authorize.handler.AUTHLISTREQUEST_API, self.request_handler)
-        app.router.add_put(
-            authorize.handler.AUTHLISTREQUEST_API + authorize.handler.ID_EXECUTE_PARAMS,
-            self.put_request_handler,
-        )
-        self.server = TestServer(app=app, port=5000)
-        await self.server.start_server()
-
-        # The expected result, to updated in the course of the test case.
-        self.expected_rest_message: authorize.handler.RestMessageTypeList = []
-        # The expected execution status, to updated in the course of the test
-        # case.
-        self.expected_execution_status = authorize.ExecutionStatus.PENDING
-        # The expected execution message, to updated in the course of the test
-        # case.
-        self.expected_execution_message = ""
-
-    async def request_handler(self, request: web.Request) -> web.Response:
-        """General handler coroutine for the test REST server."""
-        return web.json_response(self.expected_rest_message)
-
-    async def put_request_handler(self, request: web.Request) -> web.Response:
-        """PUT handler coroutine for the test REST server."""
-        request_id = int(request.match_info["request_id"])
-        response_dict = APPROVED_PROCESSED_AUTH_REQUESTS[request_id]
-        req_json = await request.json()
-        self.expected_execution_status = authorize.ExecutionStatus(
-            req_json["execution_status"]
-        )
-        self.expected_execution_message = req_json["execution_message"]
-        return web.json_response(response_dict)
+        self.mock_web_server = authorize.MockWebServer()
+        await self.mock_web_server.server.start_server()
 
     async def asyncTearDown(self) -> None:
-        await self.server.close()
+        await self.mock_web_server.server.close()
 
     async def validate_auth_requests(
         self,
@@ -112,11 +78,11 @@ class RestAuthorizeHandlerTestCase(unittest.IsolatedAsyncioTestCase):
             assert csc2.salinfo.non_authorized_cscs == set()
 
             for aar in APPROVED_AUTH_REQUESTS:
-                self.expected_rest_message = aar.rest_messages
+                self.mock_web_server.expected_rest_message = aar.rest_messages
                 await self.handler.process_approved_and_unprocessed_auth_requests()
                 await self.validate_auth_requests(
                     response_list=self.handler.response,
-                    auth_request_list=self.expected_rest_message,
+                    auth_request_list=self.mock_web_server.expected_rest_message,
                 )
 
                 assert csc1.salinfo.authorized_users == aar.expected_authorized_users[0]
@@ -130,13 +96,13 @@ class RestAuthorizeHandlerTestCase(unittest.IsolatedAsyncioTestCase):
                     == aar.expected_non_authorized_cscs[1]
                 )
                 assert (
-                    self.expected_execution_status
+                    self.mock_web_server.expected_execution_status
                     == APPROVED_PROCESSED_AUTH_REQUESTS[aar.rest_messages[-1]["id"]][
                         "execution_status"
                     ]
                 )
                 assert (
-                    self.expected_execution_message
+                    self.mock_web_server.expected_execution_message
                     == APPROVED_PROCESSED_AUTH_REQUESTS[aar.rest_messages[-1]["id"]][
                         "execution_message"
                     ]
@@ -144,7 +110,9 @@ class RestAuthorizeHandlerTestCase(unittest.IsolatedAsyncioTestCase):
 
     async def test_handle_authorize_request(self) -> None:
         for pending_auth_request in PENDING_AUTH_REQUESTS:
-            self.expected_rest_message = pending_auth_request.rest_messages
+            self.mock_web_server.expected_rest_message = (
+                pending_auth_request.rest_messages
+            )
             data = authorize.AuthRequestData(
                 authorized_users=pending_auth_request.rest_messages[0][
                     "authorized_users"
@@ -158,5 +126,5 @@ class RestAuthorizeHandlerTestCase(unittest.IsolatedAsyncioTestCase):
             await self.handler.handle_authorize_request(data)
             await self.validate_auth_requests(
                 response_list=self.handler.response,
-                auth_request_list=self.expected_rest_message,
+                auth_request_list=self.mock_web_server.expected_rest_message,
             )
