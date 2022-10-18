@@ -52,24 +52,24 @@ class UtilsTestCase(unittest.TestCase):
             with self.assertRaises(ValueError):
                 authorize.check_cscs({f"abc:1{bad_index_char}"})
 
-    def test_check_user_host(self) -> None:
-        for good_value in (
+    def test_check_user_hosts(self) -> None:
+        good_values = {
             "abc_ABC-123.xyz@abc_ABC-123.xyz",
             "abc_ABC-123.xyz@127.64.34.5",
-        ):
-            authorize.check_user_host(good_value)
+        }
+        authorize.check_user_hosts(good_values)
 
         for bad_prefix in ("_", ".", "-", "@", "?", "*"):
             with self.assertRaises(ValueError):
-                authorize.check_user_host(f"{bad_prefix}abc@123")
+                authorize.check_user_hosts({f"{bad_prefix}abc@123"})
             with self.assertRaises(ValueError):
-                authorize.check_user_host(f"abc@{bad_prefix}123")
+                authorize.check_user_hosts({f"abc@{bad_prefix}123"})
 
         for bad_char in ("@", "?", "*"):
             with self.assertRaises(ValueError):
-                authorize.check_user_host(f"abc{bad_char}@123")
+                authorize.check_user_hosts({f"abc{bad_char}@123"})
             with self.assertRaises(ValueError):
-                authorize.check_user_host(f"abc@{bad_char}123")
+                authorize.check_user_hosts({f"abc@{bad_char}123"})
 
 
 if __name__ == "__main__":

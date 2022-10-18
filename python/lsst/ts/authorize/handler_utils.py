@@ -31,7 +31,7 @@ __all__ = [
     "AuthRequestData",
     "ExecutionStatus",
     "check_cscs",
-    "check_user_host",
+    "check_user_hosts",
     "create_failed_error_message",
 ]
 
@@ -83,24 +83,23 @@ def check_cscs(cscs: set[str]) -> set[str]:
     return cscs
 
 
-# TODO DM-36097: Change to checking a list of user/host names instead of one
-#  at a time.
-def check_user_host(user_host: str) -> str:
-    """Check a user@host value.
+def check_user_hosts(user_hosts: set[str]) -> set[str]:
+    """Check one or more user@host values.
 
     Returns
     -------
-    user_host : str
-        The ``user_host`` argument, if valid.
+    user_hosts : `set` of `str`
+        The ``user_hosts`` values argument, if valid.
 
     Raises
     ------
     ValueError
-        If ``user_host`` is not valid.
+        If at least one value in ``user_hosts`` is not valid.
     """
-    if USER_HOST_RE.match(user_host):
-        return user_host
-    raise ValueError(f"Invalid user@host: {user_host!r}")
+    for user_host in user_hosts:
+        if not USER_HOST_RE.match(user_host):
+            raise ValueError(f"Invalid user@host: {user_host!r}")
+    return user_hosts
 
 
 def create_failed_error_message(

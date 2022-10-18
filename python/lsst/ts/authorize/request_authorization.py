@@ -26,7 +26,7 @@ import asyncio
 
 from lsst.ts import salobj
 
-from .handler_utils import check_cscs, check_user_host
+from .handler_utils import check_cscs, check_user_hosts
 
 
 def print_log_message(data: salobj.BaseMsgType) -> None:
@@ -89,9 +89,10 @@ async def request_authorization_impl() -> None:
         if args.auth_users is None:
             auth_users_str = ""
         else:
-            auth_users_list = [
-                check_user_host(replace_me(user_host)) for user_host in args.auth_users
-            ]
+            auth_users_list = {
+                replace_me(val.strip()) for val in args.auth_users.split(",")
+            }
+            check_user_hosts(auth_users_list)
             auth_users_str = prefix + ", ".join(auth_users_list)
 
         if args.nonauth_cscs is None:
