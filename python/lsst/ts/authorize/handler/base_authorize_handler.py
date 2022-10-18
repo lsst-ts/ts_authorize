@@ -28,7 +28,7 @@ from abc import ABC, abstractmethod
 
 from lsst.ts import salobj, utils
 
-from ..handler_utils import AuthRequestData, check_csc, check_user_host
+from ..handler_utils import AuthRequestData, check_cscs, check_user_host
 
 # Timeout for sending setAuthList command (seconds)
 TIMEOUT_SET_AUTH_LIST = 5
@@ -141,8 +141,7 @@ class BaseAuthorizeHandler(ABC):
                 "No CSCs specified in cscsToChange; command has no effect."
             )
 
-        for csc in cscs_to_command:
-            check_csc(csc)
+        check_cscs(cscs_to_command)
 
         auth_users = data.authorized_users
         if auth_users:
@@ -151,12 +150,12 @@ class BaseAuthorizeHandler(ABC):
             for user in auth_users.split(","):
                 check_user_host(user.strip())
 
-        nonauth_cscs = data.non_authorized_cscs
-        if nonauth_cscs:
-            if nonauth_cscs[0] in ("+", "-"):
-                nonauth_cscs = nonauth_cscs[1:]
-            for csc in nonauth_cscs.split(","):
-                check_csc(csc.strip())
+        nonauth_cscs_str = data.non_authorized_cscs
+        if len(nonauth_cscs_str) > 0:
+            if nonauth_cscs_str[0] in ("+", "-"):
+                nonauth_cscs_str = nonauth_cscs_str[1:]
+            nonauth_cscs = {val.strip() for val in nonauth_cscs_str.split(",")}
+            check_cscs(nonauth_cscs)
 
         return cscs_to_command
 

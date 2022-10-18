@@ -30,7 +30,7 @@ from lsst.ts import salobj
 __all__ = [
     "AuthRequestData",
     "ExecutionStatus",
-    "check_csc",
+    "check_cscs",
     "check_user_host",
     "create_failed_error_message",
 ]
@@ -64,24 +64,23 @@ class ExecutionStatus(str, Enum):
     SUCCESSFUL = "Successful"
 
 
-# TODO DM-36097: Check against a list of known CSCs and change to checking a
-#  list of CSC names instead of one at a time.
-def check_csc(csc: str) -> str:
-    """Check a csc name[:index] value.
+def check_cscs(cscs: set[str]) -> set[str]:
+    """Check one of more csc name[:index] values.
 
     Returns
     -------
-    csc : str
-        The ``csc`` argument, if valid.
+    cscs : `set` of `str`
+        The ``cscs`` values argument, if valid.
 
     Raises
     ------
     ValueError
-        If ``csc`` is not valid.
+        If at least one value in ``cscs`` is not valid.
     """
-    if CSC_NAME_INDEX_RE.match(csc):
-        return csc
-    raise ValueError(f"Invalid CSC[:index]: {csc!r}")
+    for csc in cscs:
+        if not CSC_NAME_INDEX_RE.match(csc):
+            raise ValueError(f"Invalid CSC[:index]: {csc!r}")
+    return cscs
 
 
 # TODO DM-36097: Change to checking a list of user/host names instead of one

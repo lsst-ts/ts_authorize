@@ -25,32 +25,32 @@ from lsst.ts import authorize
 
 
 class UtilsTestCase(unittest.TestCase):
-    def test_check_csc(self) -> None:
-        for good_value in (
+    def test_check_cscs(self) -> None:
+        good_values = {
             "abc_ABC_123",
             "abc_ABC_123:0",
             "abc_ABC_123:1",
             "abc_ABC_123:56789",
-        ):
-            authorize.check_csc(good_value)
+        }
+        authorize.check_cscs(good_values)
 
         for bad_prefix in ("_", ".", "-", "?", "*"):
             with self.assertRaises(ValueError):
-                authorize.check_csc(f"{bad_prefix}abc")
+                authorize.check_cscs({f"{bad_prefix}abc"})
             with self.assertRaises(ValueError):
-                authorize.check_csc(f"{bad_prefix}abc:1")
+                authorize.check_cscs({f"{bad_prefix}abc:1"})
 
         for bad_char in (".", "-", "?", "*", "@"):
             with self.assertRaises(ValueError):
-                authorize.check_csc(f"abc{bad_char}")
+                authorize.check_cscs({f"abc{bad_char}"})
             with self.assertRaises(ValueError):
-                authorize.check_csc(f"abc{bad_char}:1")
+                authorize.check_cscs({f"abc{bad_char}:1"})
 
         for bad_index_char in ("a", "Z", ".", "-", "?", "*", "@"):
             with self.assertRaises(ValueError):
-                authorize.check_csc(f"abc:{bad_index_char}")
+                authorize.check_cscs({f"abc:{bad_index_char}"})
             with self.assertRaises(ValueError):
-                authorize.check_csc(f"abc:1{bad_index_char}")
+                authorize.check_cscs({f"abc:1{bad_index_char}"})
 
     def test_check_user_host(self) -> None:
         for good_value in (
