@@ -28,7 +28,12 @@ from abc import ABC, abstractmethod
 
 from lsst.ts import salobj, utils
 
-from ..handler_utils import AuthRequestData, check_cscs, check_user_hosts
+from ..handler_utils import (
+    AuthRequestData,
+    check_cscs,
+    check_user_hosts,
+    set_from_comma_separated_string,
+)
 
 # Timeout for sending setAuthList command (seconds)
 TIMEOUT_SET_AUTH_LIST = 5
@@ -135,7 +140,7 @@ class BaseAuthorizeHandler(ABC):
         """
 
         # Check values
-        cscs_to_command = {val.strip() for val in data.cscs_to_change.split(",")}
+        cscs_to_command = set_from_comma_separated_string(data.cscs_to_change)
         if not cscs_to_command:
             raise salobj.ExpectedError(
                 "No CSCs specified in cscsToChange; command has no effect."
@@ -147,14 +152,14 @@ class BaseAuthorizeHandler(ABC):
         if len(auth_users_str) > 0:
             if auth_users_str[0] in ("+", "-"):
                 auth_users_str = auth_users_str[1:]
-            auth_users = {val.strip() for val in auth_users_str.split(",")}
+            auth_users = set_from_comma_separated_string(auth_users_str)
             check_user_hosts(auth_users)
 
         nonauth_cscs_str = data.non_authorized_cscs
         if len(nonauth_cscs_str) > 0:
             if nonauth_cscs_str[0] in ("+", "-"):
                 nonauth_cscs_str = nonauth_cscs_str[1:]
-            nonauth_cscs = {val.strip() for val in nonauth_cscs_str.split(",")}
+            nonauth_cscs = set_from_comma_separated_string(nonauth_cscs_str)
             check_cscs(nonauth_cscs)
 
         return cscs_to_command

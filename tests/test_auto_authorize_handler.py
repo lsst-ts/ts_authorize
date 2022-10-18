@@ -49,9 +49,9 @@ class AutoAuthorizeHandlerTestCase(unittest.IsolatedAsyncioTestCase):
                 if NON_EXISTENT_CSC in td.auth_request_data.cscs_to_change:
                     with self.assertRaises(RuntimeError) as error:
                         await handler.handle_authorize_request(data=data)
-                    cscs_to_command = {
-                        val.strip() for val in data.cscs_to_change.split(",")
-                    }
+                    cscs_to_command = authorize.set_from_comma_separated_string(
+                        data.cscs_to_change
+                    )
                     expected_message = authorize.create_failed_error_message(
                         csc_failed_messages=td.expected_failed_cscs,
                         cscs_succeeded=cscs_to_command - td.expected_failed_cscs.keys(),

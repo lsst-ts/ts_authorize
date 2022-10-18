@@ -26,7 +26,7 @@ import asyncio
 
 from lsst.ts import salobj
 
-from .handler_utils import check_cscs, check_user_hosts
+from .handler_utils import check_cscs, check_user_hosts, set_from_comma_separated_string
 
 
 def print_log_message(data: salobj.BaseMsgType) -> None:
@@ -82,25 +82,24 @@ async def request_authorization_impl() -> None:
         return user_host
 
     try:
-        cscs_to_command_list = {val.strip() for val in args.cscs.split(",")}
-        check_cscs(cscs_to_command_list)
-        cscs_to_command_str = ", ".join(cscs_to_command_list)
+        cscs_to_command_set = set_from_comma_separated_string(args.cscs)
+        check_cscs(cscs_to_command_set)
+        cscs_to_command_str = ", ".join(cscs_to_command_set)
 
         if args.auth_users is None:
             auth_users_str = ""
         else:
-            auth_users_list = {
-                replace_me(val.strip()) for val in args.auth_users.split(",")
-            }
-            check_user_hosts(auth_users_list)
-            auth_users_str = prefix + ", ".join(auth_users_list)
+            auth_users_set = set_from_comma_separated_string(args.auth_users)
+            auth_users_set = {replace_me(auth_user) for auth_user in auth_users_set}
+            check_user_hosts(auth_users_set)
+            auth_users_str = prefix + ", ".join(auth_users_set)
 
         if args.nonauth_cscs is None:
             nonauth_cscs_str = ""
         else:
-            nonauth_cscs_list = {val.strip() for val in args.nonauth_cscs.split(",")}
-            check_cscs(nonauth_cscs_list)
-            nonauth_cscs_str = prefix + ", ".join(nonauth_cscs_list)
+            nonauth_cscs_set = set_from_comma_separated_string(args.nonauth_cscs)
+            check_cscs(nonauth_cscs_set)
+            nonauth_cscs_str = prefix + ", ".join(nonauth_cscs_set)
     except ValueError as e:
         parser.error(str(e))
 

@@ -21,6 +21,7 @@
 
 from __future__ import annotations
 
+import collections
 import re
 from dataclasses import dataclass
 from enum import Enum
@@ -33,6 +34,7 @@ __all__ = [
     "check_cscs",
     "check_user_hosts",
     "create_failed_error_message",
+    "set_from_comma_separated_string",
 ]
 
 CSC_NAME_INDEX_RE = re.compile(r"^[a-zA-Z][_A-Za-z0-9]*(:\d+)?$")
@@ -64,13 +66,8 @@ class ExecutionStatus(str, Enum):
     SUCCESSFUL = "Successful"
 
 
-def check_cscs(cscs: set[str]) -> set[str]:
+def check_cscs(cscs: collections.abc.Iterable) -> None:
     """Check one of more csc name[:index] values.
-
-    Returns
-    -------
-    cscs : `set` of `str`
-        The ``cscs`` values argument, if valid.
 
     Raises
     ------
@@ -80,16 +77,10 @@ def check_cscs(cscs: set[str]) -> set[str]:
     for csc in cscs:
         if not CSC_NAME_INDEX_RE.match(csc):
             raise ValueError(f"Invalid CSC[:index]: {csc!r}")
-    return cscs
 
 
-def check_user_hosts(user_hosts: set[str]) -> set[str]:
+def check_user_hosts(user_hosts: collections.abc.Iterable) -> None:
     """Check one or more user@host values.
-
-    Returns
-    -------
-    user_hosts : `set` of `str`
-        The ``user_hosts`` values argument, if valid.
 
     Raises
     ------
@@ -99,7 +90,6 @@ def check_user_hosts(user_hosts: set[str]) -> set[str]:
     for user_host in user_hosts:
         if not USER_HOST_RE.match(user_host):
             raise ValueError(f"Invalid user@host: {user_host!r}")
-    return user_hosts
 
 
 def create_failed_error_message(
@@ -124,3 +114,21 @@ def create_failed_error_message(
         f"Failed to set authList for one or more CSCs: {csc_failed_messages}. "
         f"The following CSCs were successfully updated: {cscs_succeeded}."
     )
+
+
+def set_from_comma_separated_string(string_to_split: str) -> set[str]:
+    """Split a comma separated string into a set of the items in the string.
+
+    Whitespace in the items in removed.
+
+    Parameters
+    ----------
+    string_to_split : `str`
+        The comma separated string to split.
+
+    Returns
+    -------
+    `set` of `str`
+        A set of the items that were separated by a comma.
+    """
+    return {val.strip() for val in string_to_split.split(",")}
