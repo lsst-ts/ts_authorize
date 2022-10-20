@@ -21,15 +21,12 @@
 
 __all__ = ["AutoAuthorizeHandler"]
 
-from lsst.ts import salobj
-
+from ..handler_utils import AuthRequestData, create_failed_error_message
 from .base_authorize_handler import BaseAuthorizeHandler
 
 
 class AutoAuthorizeHandler(BaseAuthorizeHandler):
-    async def handle_authorize_request(
-        self, data: salobj.type_hints.BaseMsgType
-    ) -> None:
+    async def handle_authorize_request(self, data: AuthRequestData) -> None:
         """Handle an authorize request. Contact each CSC in the request and
         send the setAuthList command.
 
@@ -49,10 +46,14 @@ class AutoAuthorizeHandler(BaseAuthorizeHandler):
         All CSCs that can be contacted get changed, even if one or more CSCs
         cannot be contacted.
         """
-        await self.process_authorize_request(data=data)
+        csc_failed_messages, cscs_succeeded = await self.process_authorize_request(
+            data=data
+        )
 
-        if len(self.csc_failed_messages) > 0:
+        if len(csc_failed_messages) > 0:
             raise RuntimeError(
-                f"Failed to set authList for the following CSCs: {self.csc_failed_messages}. "
-                f"The following CSCs were successfully updated: {self.cscs_succeeded}."
+                create_failed_error_message(
+                    csc_failed_messages=csc_failed_messages,
+                    cscs_succeeded=cscs_succeeded,
+                )
             )

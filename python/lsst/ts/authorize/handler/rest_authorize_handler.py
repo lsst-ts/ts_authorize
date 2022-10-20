@@ -34,6 +34,7 @@ import types
 import aiohttp
 from lsst.ts import salobj
 
+from ..handler_utils import AuthRequestData, ExecutionStatus
 from .base_authorize_handler import BaseAuthorizeHandler
 
 # Define data types for improved readability of the code.
@@ -41,7 +42,9 @@ RestMessageType = dict[str, int | float | str]
 RestMessageTypeList = list[RestMessageType]
 
 AUTHLISTREQUEST_API = "/api/authlistrequest/"
-AUTHORIZED_PENDING_PARAMS = "?status=Authorized&execution_status=Pending"
+AUTHORIZED_PENDING_PARAMS = (
+    f"?status=Authorized&execution_status={ExecutionStatus.PENDING}"
+)
 ID_EXECUTE_PARAMS = "{request_id}/execute"
 
 
@@ -90,25 +93,17 @@ class RestAuthorizeHandler(BaseAuthorizeHandler):
         # Lock to prevent concurrent execution of GET and POST.
         self.lock = asyncio.Lock()
 
-    async def handle_authorize_request(
-        self, data: salobj.type_hints.BaseMsgType
-    ) -> None:
-        # Set up data to send over JSON
-        authorized_users = data.authorizedUsers
-        cscs_to_change = data.cscsToChange
-        non_authorized_cscs = data.nonAuthorizedCSCs
-        requested_by = data.private_identity
-
+    async def handle_authorize_request(self, data: AuthRequestData) -> None:
         # Send a POST with the authorize request data. The reply received from
         # the REST server is not used and is stored for testing purposes.
         async with self.lock, aiohttp.ClientSession() as session:
             async with session.post(
                 self.rest_url,
                 json={
-                    "cscs_to_change": cscs_to_change,
-                    "authorized_users": authorized_users,
-                    "unauthorized_cscs": non_authorized_cscs,
-                    "requested_by": requested_by,
+                    "cscs_to_change": data.cscs_to_change,
+                    "authorized_users": data.authorized_users,
+                    "unauthorized_cscs": data.non_authorized_cscs,
+                    "requested_by": data.private_identity,
                 },
             ) as resp:
                 self.response = await resp.json()
@@ -127,25 +122,29 @@ class RestAuthorizeHandler(BaseAuthorizeHandler):
                 self.response = await resp.json()
                 if self.response is not None:
                     for response in self.response:
-                        data = types.SimpleNamespace(
-                            authorizedUsers=response["authorized_users"],
-                            cscsToChange=response["cscs_to_change"],
-                            nonAuthorizedCSCs=response["unauthorized_cscs"],
+                        data = AuthRequestData(
+                            authorized_users=str(response["authorized_users"]),
+                            cscs_to_change=str(response["cscs_to_change"]),
+                            non_authorized_cscs=str(response["unauthorized_cscs"]),
+                            private_identity=str(response["requested_by"]),
                         )
-                        await self.process_authorize_request(data=data)
+                        (
+                            csc_failed_messages,
+                            cscs_succeeded,
+                        ) = await self.process_authorize_request(data=data)
 
                         response_id = response["id"]
-                        execution_status = "Successful"
+                        execution_status = ExecutionStatus.SUCCESSFUL
                         execution_message = (
                             "The following CSCs were updated correctly: "
-                            + ", ".join(sorted(self.cscs_succeeded))
+                            + ", ".join(sorted(cscs_succeeded))
                             + "."
                         )
-                        if len(self.csc_failed_messages) > 0:
-                            execution_status = "Failed"
+                        if len(csc_failed_messages) > 0:
+                            execution_status = ExecutionStatus.FAILED
                             failed_message = (
                                 " The following CSCs failed to update correctly: "
-                                + ", ".join(sorted(self.csc_failed_messages.keys()))
+                                + ", ".join(sorted(csc_failed_messages.keys()))
                                 + "."
                             )
                             execution_message = execution_message + failed_message

@@ -22,7 +22,8 @@
 from dataclasses import dataclass
 from enum import Enum
 
-from lsst.ts.authorize.handler import RestMessageType, RestMessageTypeList
+from .handler import RestMessageType, RestMessageTypeList
+from .handler_utils import AuthRequestData, ExecutionStatus
 
 # Indices to be used for Test CSCs.
 INDEX1 = 5
@@ -53,22 +54,14 @@ class RequestStatus(str, Enum):
     PENDING = "Pending"
 
 
-class ExecutionStatus(str, Enum):
-    FAILED = "Failed"
-    PENDING = "Pending"
-    SUCCESSFUL = "Successful"
-
-
 @dataclass
-class AuthRequestData:
+class AuthRequestTestData:
     """DataClass representing test data for auth request tests."""
 
-    cscs_to_command: str
-    authorized_users: str
-    non_authorized_cscs: str
+    auth_request_data: AuthRequestData
     expected_authorized_users: list[set[str]]
     expected_non_authorized_cscs: list[set[str]]
-    expected_failed_cscs: set[str]
+    expected_failed_cscs: dict[str, str]
 
 
 @dataclass
@@ -92,18 +85,18 @@ class RestMessage:
     @classmethod
     def from_auth_request_data(
         cls,
-        ard: AuthRequestData,
+        artd: AuthRequestTestData,
         message_id: int,
         status: str,
         execution_status: str = ExecutionStatus.PENDING.value,
         execution_message: str = "",
     ) -> RestMessageType:
         """Factory method that takes values for part of the variables from the
-        provided `AuthRequestData` instance.
+        provided `AuthRequestTestData` instance.
 
         Parameters
         ----------
-        ard : `AuthRequestData`
+        artd : `AuthRequestTestData`
             The instance to take values from.
         message_id : `int`
             The ID of the RestMessage.
@@ -123,9 +116,9 @@ class RestMessage:
         return vars(
             cls(
                 id=message_id,
-                cscs_to_change=ard.cscs_to_command,
-                authorized_users=ard.authorized_users,
-                unauthorized_cscs=ard.non_authorized_cscs,
+                cscs_to_change=artd.auth_request_data.cscs_to_change,
+                authorized_users=artd.auth_request_data.authorized_users,
+                unauthorized_cscs=artd.auth_request_data.non_authorized_cscs,
                 status=status,
                 execution_status=execution_status,
                 execution_message=execution_message,
@@ -138,50 +131,64 @@ class RestMessageData:
     rest_messages: RestMessageTypeList
     expected_authorized_users: list[set[str]]
     expected_non_authorized_cscs: list[set[str]]
-    expected_failed_cscs: set[str]
+    expected_failed_cscs: dict[str, str]
 
 
 TEST_DATA = [
     # A set of authorized users and non-authorized CSCs to be sent to a single
     # CSC.
-    AuthRequestData(
-        cscs_to_command=f"Test:{INDEX1}",
-        authorized_users=", ".join(TEST_USERS_1),
-        non_authorized_cscs=", ".join(TEST_CSCS_1),
+    AuthRequestTestData(
+        auth_request_data=AuthRequestData(
+            authorized_users=", ".join(TEST_USERS_1),
+            cscs_to_change=f"Test:{INDEX1}",
+            non_authorized_cscs=", ".join(TEST_CSCS_1),
+            private_identity="operator1@localhost",
+        ),
         expected_authorized_users=[TEST_USERS_1, set()],
         expected_non_authorized_cscs=[TEST_CSCS_1, set()],
-        expected_failed_cscs=set(),
+        expected_failed_cscs={},
     ),
     # A set of authorized users and non-authorized CSCs to be sent to two CSCs.
     # Since no "+" or "-" are present, the existing authorized users and
     # non-authorized CSCs will be replaced.
-    AuthRequestData(
-        cscs_to_command=f"Test:{INDEX1}, {NON_EXISTENT_CSC}, Test:{INDEX2}",
-        authorized_users=", ".join(TEST_USERS_2),
-        non_authorized_cscs=", ".join(TEST_CSCS_2),
+    AuthRequestTestData(
+        auth_request_data=AuthRequestData(
+            authorized_users=", ".join(TEST_USERS_2),
+            cscs_to_change=f"Test:{INDEX1}, {NON_EXISTENT_CSC}, Test:{INDEX2}",
+            non_authorized_cscs=", ".join(TEST_CSCS_2),
+            private_identity="operator1@localhost",
+        ),
         expected_authorized_users=[TEST_USERS_2, TEST_USERS_2],
         expected_non_authorized_cscs=[TEST_CSCS_2, TEST_CSCS_2],
-        expected_failed_cscs={NON_EXISTENT_CSC},
+        expected_failed_cscs={
+            NON_EXISTENT_CSC: "Timed out waiting for command acknowledgement"
+        },
     ),
     # Here we use a "+" for both the authorized users and the non-authorized
     # CSCs, meaning that they get added to the existing sets.
-    AuthRequestData(
-        cscs_to_command=f"Test:{INDEX1}, Test:{INDEX2}",
-        authorized_users="+" + ", ".join(TEST_USERS_1),
-        non_authorized_cscs="+" + ", ".join(TEST_CSCS_1),
+    AuthRequestTestData(
+        auth_request_data=AuthRequestData(
+            authorized_users="+" + ", ".join(TEST_USERS_1),
+            cscs_to_change=f"Test:{INDEX1}, Test:{INDEX2}",
+            non_authorized_cscs="+" + ", ".join(TEST_CSCS_1),
+            private_identity="operator1@localhost",
+        ),
         expected_authorized_users=[JOINED_TEST_USERS, JOINED_TEST_USERS],
         expected_non_authorized_cscs=[JOINED_TEST_CSCS, JOINED_TEST_CSCS],
-        expected_failed_cscs=set(),
+        expected_failed_cscs={},
     ),
     # Here we use a "-" for both the authorized users and the non-authorized
     # CSCs, meaning that they get removed from the existing sets.
-    AuthRequestData(
-        cscs_to_command=f"Test:{INDEX1}, Test:{INDEX2}",
-        authorized_users="-" + ", ".join(USERS_TO_REMOVE),
-        non_authorized_cscs="-" + ", ".join(CSCS_TO_REMOVE),
+    AuthRequestTestData(
+        auth_request_data=AuthRequestData(
+            authorized_users="-" + ", ".join(USERS_TO_REMOVE),
+            cscs_to_change=f"Test:{INDEX1}, Test:{INDEX2}",
+            non_authorized_cscs="-" + ", ".join(CSCS_TO_REMOVE),
+            private_identity="operator1@localhost",
+        ),
         expected_authorized_users=[REMAINING_USERS, REMAINING_USERS],
         expected_non_authorized_cscs=[REMAINING_CSCS, REMAINING_CSCS],
-        expected_failed_cscs=set(),
+        expected_failed_cscs={},
     ),
 ]
 
@@ -191,7 +198,7 @@ PENDING_AUTH_REQUESTS = [
     RestMessageData(
         rest_messages=[
             RestMessage.from_auth_request_data(
-                ard=TEST_DATA[0], message_id=0, status=RequestStatus.PENDING.value
+                artd=TEST_DATA[0], message_id=0, status=RequestStatus.PENDING.value
             ),
         ],
         expected_authorized_users=TEST_DATA[0].expected_authorized_users,
@@ -205,10 +212,10 @@ APPROVED_AUTH_REQUESTS = [
     RestMessageData(
         rest_messages=[
             RestMessage.from_auth_request_data(
-                ard=TEST_DATA[0], message_id=0, status=RequestStatus.APPROVED.value
+                artd=TEST_DATA[0], message_id=0, status=RequestStatus.APPROVED.value
             ),
             RestMessage.from_auth_request_data(
-                ard=TEST_DATA[1], message_id=1, status=RequestStatus.APPROVED.value
+                artd=TEST_DATA[1], message_id=1, status=RequestStatus.APPROVED.value
             ),
         ],
         expected_authorized_users=TEST_DATA[1].expected_authorized_users,
@@ -218,7 +225,7 @@ APPROVED_AUTH_REQUESTS = [
     RestMessageData(
         rest_messages=[
             RestMessage.from_auth_request_data(
-                ard=TEST_DATA[2], message_id=2, status=RequestStatus.APPROVED.value
+                artd=TEST_DATA[2], message_id=2, status=RequestStatus.APPROVED.value
             ),
         ],
         expected_authorized_users=TEST_DATA[2].expected_authorized_users,
@@ -228,7 +235,7 @@ APPROVED_AUTH_REQUESTS = [
     RestMessageData(
         rest_messages=[
             RestMessage.from_auth_request_data(
-                ard=TEST_DATA[3], message_id=3, status=RequestStatus.APPROVED.value
+                artd=TEST_DATA[3], message_id=3, status=RequestStatus.APPROVED.value
             ),
         ],
         expected_authorized_users=TEST_DATA[3].expected_authorized_users,
@@ -240,14 +247,14 @@ APPROVED_AUTH_REQUESTS = [
 # A list of approved, processed authorization requests.
 APPROVED_PROCESSED_AUTH_REQUESTS = [
     RestMessage.from_auth_request_data(
-        ard=TEST_DATA[0],
+        artd=TEST_DATA[0],
         message_id=0,
         status=RequestStatus.APPROVED.value,
         execution_status=ExecutionStatus.SUCCESSFUL.value,
         execution_message="The following CSCs were updated correctly: Test:5.",
     ),
     RestMessage.from_auth_request_data(
-        ard=TEST_DATA[1],
+        artd=TEST_DATA[1],
         message_id=1,
         status=RequestStatus.APPROVED.value,
         execution_status=ExecutionStatus.FAILED.value,
@@ -255,14 +262,14 @@ APPROVED_PROCESSED_AUTH_REQUESTS = [
         + "The following CSCs failed to update correctly: Test:999.",
     ),
     RestMessage.from_auth_request_data(
-        ard=TEST_DATA[2],
+        artd=TEST_DATA[2],
         message_id=2,
         status=RequestStatus.APPROVED.value,
         execution_status=ExecutionStatus.SUCCESSFUL.value,
         execution_message="The following CSCs were updated correctly: Test:5, Test:52.",
     ),
     RestMessage.from_auth_request_data(
-        ard=TEST_DATA[3],
+        artd=TEST_DATA[3],
         message_id=3,
         status=RequestStatus.APPROVED.value,
         execution_status=ExecutionStatus.SUCCESSFUL.value,
