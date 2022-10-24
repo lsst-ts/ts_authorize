@@ -47,13 +47,6 @@ class RestAuthorizeHandlerTestCase(unittest.IsolatedAsyncioTestCase):
             domain=domain, config=config
         )
 
-        # Setup the test REST server.
-        self.mock_web_server = authorize.MockWebServer()
-        await self.mock_web_server.server.start_server()
-
-    async def asyncTearDown(self) -> None:
-        await self.mock_web_server.server.close()
-
     async def validate_auth_requests(
         self,
         response_list: authorize.handler.RestMessageTypeList,
@@ -71,18 +64,20 @@ class RestAuthorizeHandlerTestCase(unittest.IsolatedAsyncioTestCase):
     async def test_process_approved_and_unprocessed_auth_requests(self) -> None:
         async with authorize.MinimalTestCsc(
             index=INDEX1
-        ) as csc1, authorize.MinimalTestCsc(index=INDEX2) as csc2:
+        ) as csc1, authorize.MinimalTestCsc(
+            index=INDEX2
+        ) as csc2, authorize.MockWebServer() as mock_web_server:
             assert csc1.salinfo.authorized_users == set()
             assert csc1.salinfo.non_authorized_cscs == set()
             assert csc2.salinfo.authorized_users == set()
             assert csc2.salinfo.non_authorized_cscs == set()
 
             for aar in APPROVED_AUTH_REQUESTS:
-                self.mock_web_server.expected_rest_message = aar.rest_messages
+                mock_web_server.expected_rest_message = aar.rest_messages
                 await self.handler.process_approved_and_unprocessed_auth_requests()
                 await self.validate_auth_requests(
                     response_list=self.handler.response,
-                    auth_request_list=self.mock_web_server.expected_rest_message,
+                    auth_request_list=mock_web_server.expected_rest_message,
                 )
 
                 assert csc1.salinfo.authorized_users == aar.expected_authorized_users[0]
@@ -96,35 +91,38 @@ class RestAuthorizeHandlerTestCase(unittest.IsolatedAsyncioTestCase):
                     == aar.expected_non_authorized_cscs[1]
                 )
                 assert (
-                    self.mock_web_server.expected_execution_status
+                    mock_web_server.expected_execution_status
                     == APPROVED_PROCESSED_AUTH_REQUESTS[aar.rest_messages[-1]["id"]][
                         "execution_status"
                     ]
                 )
                 assert (
-                    self.mock_web_server.expected_execution_message
+                    mock_web_server.expected_execution_message
                     == APPROVED_PROCESSED_AUTH_REQUESTS[aar.rest_messages[-1]["id"]][
                         "execution_message"
                     ]
                 )
 
     async def test_handle_authorize_request(self) -> None:
-        for pending_auth_request in PENDING_AUTH_REQUESTS:
-            self.mock_web_server.expected_rest_message = (
-                pending_auth_request.rest_messages
-            )
-            data = authorize.AuthRequestData(
-                authorized_users=pending_auth_request.rest_messages[0][
-                    "authorized_users"
-                ],
-                cscs_to_change=pending_auth_request.rest_messages[0]["cscs_to_change"],
-                non_authorized_cscs=pending_auth_request.rest_messages[0][
-                    "unauthorized_cscs"
-                ],
-                private_identity="RestAuthorizeHandlerTestCase",
-            )
-            await self.handler.handle_authorize_request(data)
-            await self.validate_auth_requests(
-                response_list=self.handler.response,
-                auth_request_list=self.mock_web_server.expected_rest_message,
-            )
+        async with authorize.MockWebServer() as mock_web_server:
+            for pending_auth_request in PENDING_AUTH_REQUESTS:
+                mock_web_server.expected_rest_message = (
+                    pending_auth_request.rest_messages
+                )
+                data = authorize.AuthRequestData(
+                    authorized_users=pending_auth_request.rest_messages[0][
+                        "authorized_users"
+                    ],
+                    cscs_to_change=pending_auth_request.rest_messages[0][
+                        "cscs_to_change"
+                    ],
+                    non_authorized_cscs=pending_auth_request.rest_messages[0][
+                        "unauthorized_cscs"
+                    ],
+                    private_identity="RestAuthorizeHandlerTestCase",
+                )
+                await self.handler.handle_authorize_request(data)
+                await self.validate_auth_requests(
+                    response_list=self.handler.response,
+                    auth_request_list=mock_web_server.expected_rest_message,
+                )
