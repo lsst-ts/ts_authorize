@@ -19,6 +19,11 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+from __future__ import annotations
+
+from types import TracebackType
+from typing import Type
+
 from aiohttp import web
 from aiohttp.test_utils import TestServer
 
@@ -44,6 +49,25 @@ class MockWebServer:
         self.expected_execution_status = ExecutionStatus.PENDING
         # The expected execution message.
         self.expected_execution_message = ""
+
+    def __enter__(self) -> None:
+        # This class only implements an async context manager.
+        raise NotImplementedError("Use 'async with' instead.")
+
+    def __exit__(
+        self, type: Type[BaseException], value: BaseException, traceback: TracebackType
+    ) -> None:
+        # __exit__ should exist in pair with __enter__ but never be executed.
+        raise NotImplementedError("Use 'async with' instead.")
+
+    async def __aenter__(self) -> MockWebServer:
+        await self.server.start_server()
+        return self
+
+    async def __aexit__(
+        self, type: Type[BaseException], value: BaseException, traceback: TracebackType
+    ) -> None:
+        await self.server.close()
 
     async def request_handler(self, request: web.Request) -> web.Response:
         """General handler coroutine for the mock REST server."""

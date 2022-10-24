@@ -42,16 +42,6 @@ TEST_CONFIG_DIR = pathlib.Path(__file__).parent / "data" / "config"
 
 
 class AuthorizeTestCase(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTestCase):
-    async def asyncSetUp(self) -> None:
-        await super().asyncSetUp()
-
-        # Setup the test REST server.
-        self.mock_web_server = authorize.MockWebServer()
-        await self.mock_web_server.server.start_server()
-
-    async def asyncTearDown(self) -> None:
-        await self.mock_web_server.server.close()
-
     def basic_make_csc(
         self,
         initial_state: salobj.State,
@@ -166,7 +156,9 @@ class AuthorizeTestCase(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTestCase
                 )
 
     async def test_request_rest_authorization(self) -> None:
-        async with self.make_csc(
+        # Start the MockWebServer context manager first to avoid
+        # "Cannot connect to host localhost:5000" errors.
+        async with authorize.MockWebServer() as mock_web_server, self.make_csc(
             config_dir=TEST_CONFIG_DIR,
             initial_state=salobj.State.ENABLED,
             override="test_rest_config.yaml",
@@ -174,7 +166,7 @@ class AuthorizeTestCase(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTestCase
             index=INDEX2
         ) as csc2:
             td = TEST_DATA[0]
-            self.mock_web_server.expected_rest_message = PENDING_AUTH_REQUESTS[
+            mock_web_server.expected_rest_message = PENDING_AUTH_REQUESTS[
                 0
             ].rest_messages
             data = {
@@ -195,20 +187,19 @@ class AuthorizeTestCase(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTestCase
 
             assert (
                 self.csc.authorize_handler.response
-                == self.mock_web_server.expected_rest_message
+                == mock_web_server.expected_rest_message
             )
 
     async def test_process_approved_and_unprocessed_auth_requests(self) -> None:
-        aar = APPROVED_AUTH_REQUESTS[0]
-        self.mock_web_server.expected_rest_message = [aar.rest_messages[1]]
-
-        async with self.make_csc(
+        async with authorize.MockWebServer() as mock_web_server, self.make_csc(
             config_dir=TEST_CONFIG_DIR,
             initial_state=salobj.State.ENABLED,
             override="test_rest_config.yaml",
         ), authorize.MinimalTestCsc(index=INDEX1) as csc1, authorize.MinimalTestCsc(
             index=INDEX2
         ) as csc2:
+            aar = APPROVED_AUTH_REQUESTS[0]
+            mock_web_server.expected_rest_message = [aar.rest_messages[1]]
 
             # Give time to the CSCs to process the REST messages.
             while (
@@ -231,5 +222,5 @@ class AuthorizeTestCase(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTestCase
 
             assert (
                 self.csc.authorize_handler.response
-                == self.mock_web_server.expected_rest_message
+                == mock_web_server.expected_rest_message
             )
