@@ -1,6 +1,6 @@
-# This file is part of ts_love_csc.
+# This file is part of ts_authorize.
 #
-# Developed for Rubin Observatory Telescope and Site Systems.
+# Developed for Vera C. Rubin Observatory Telescope and Site Systems.
 # This product includes software developed by the LSST Project
 # (https://www.lsst.org).
 # See the COPYRIGHT file at the top-level directory of this distribution
@@ -35,22 +35,24 @@ properties:
     host:
         type: string
         description: >-
-            Hostname of the LOVE server to validate request authorization
-            commands.
+            Hostname of the LOVE server to validate request authorization commands.
     port:
         type: integer
         description: Port to connect to the LOVE server (see host for more information).
     timeout_request_authorization:
         type: number
         description: >-
-            Timeout for waiting requests to change the authlist to be processed
-            by operators.
+            Timeout [s] for waiting requests to change the authlist to be processed by operators.
     auto_authorization:
         type: boolean
         description: >-
             Automatically aprove authorization requests?
             If true, all requests are approved automatically.
             If false, a request to the LOVE frontend is generated.
+    poll_interval:
+        type: integer
+        description: >-
+            Sleep time [s] for the periodic task of the authorization handler.
 additionalProperties: false
 """
 )

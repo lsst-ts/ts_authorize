@@ -6,6 +6,17 @@
 Version History
 ###############
 
+v0.6.0
+------
+* Sort imports with isort.
+* Add full MyPy support.
+* Modernize the pre-commit hooks.
+* Extract auto authorize code to separate class.
+* Store success and failure info in instance variables for further processing.
+* Add a test utility for testing multiple scenarios.
+* Add support for the LOVE REST API.
+  The CSC polls the REST server on a regular basis and processes approved but unprocessed authorize requests.
+
 v0.5.0
 ------
 
