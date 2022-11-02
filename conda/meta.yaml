@@ -39,9 +39,11 @@ requirements:
     - setuptools_scm
     - setuptools
     - ts-conda-build =0.3
+    - aiohttp
   run:
     - python {{ python }}
     - setuptools
     - setuptools_scm
     - ts-idl {{ idl_version }}
     - ts-salobj {{ salobj_version }}
+    - aiohttp
