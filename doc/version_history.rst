@@ -6,6 +6,10 @@
 Version History
 ###############
 
+v0.6.1
+------
+* Fix conda deployment dependencies.
+
 v0.6.0
 ------
 * Sort imports with isort.
