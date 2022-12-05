@@ -6,9 +6,24 @@
 Version History
 ###############
 
+v0.6.2
+------
+
+* pre-commit: update mypy version
+
+Requirements:
+
+* ts_salobj 7
+* IDL files for Authorize plus, all subsystems to authorize, built with ts_xml 11
+
 v0.6.1
 ------
 * Fix conda deployment dependencies.
+
+Requirements:
+
+* ts_salobj 7
+* IDL files for Authorize plus, all subsystems to authorize, built with ts_xml 11
 
 v0.6.0
 ------
@@ -21,11 +36,21 @@ v0.6.0
 * Add support for the LOVE REST API.
   The CSC polls the REST server on a regular basis and processes approved but unprocessed authorize requests.
 
+Requirements:
+
+* ts_salobj 7
+* IDL files for Authorize plus, all subsystems to authorize, built with ts_xml 11
+
 v0.5.0
 ------
 
 * Rename command-line scripts to remove ".py" suffix.
 * Build with pyproject.toml.
+
+Requirements:
+
+* ts_salobj 7
+* IDL files for Authorize plus, all subsystems to authorize, built with ts_xml 11
 
 v0.4.2
 ------
@@ -46,6 +71,11 @@ v0.4.1
 * Update conda jenkins build script.
 * Update setup.py
 * Update conda recipe.
+
+Requirements:
+
+* ts_salobj 7
+* IDL files for Authorize plus, all subsystems to authorize, built with ts_xml 11
 
 v0.4.0
 ------
