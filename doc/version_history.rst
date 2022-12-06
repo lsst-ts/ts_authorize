@@ -6,6 +6,18 @@
 Version History
 ###############
 
+v0.6.3
+------
+
+* Clean up conda recipe.
+* Exclude 'bin/request_authorization' from the mypy pre-commit hook.
+* Fix LOVE REST API URL.
+
+Requirements:
+
+* ts_salobj 7
+* IDL files for Authorize plus, all subsystems to authorize, built with ts_xml 11
+
 v0.6.2
 ------
 
