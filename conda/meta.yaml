@@ -7,11 +7,8 @@ source:
   path: ../
 
 build:
-  noarch: generic
+  noarch: python
   script: {{ PYTHON }} -m pip install --no-deps --ignore-installed .
-  entry_points:
-    - request_authorization = lsst.ts.authorize:request_authorization
-    - run_authorize = lsst.ts.authorize:run_authorize
 
 test:
   requires:
@@ -26,7 +23,7 @@ test:
     - setup.cfg
     - pyproject.toml
   commands:
-    - py.test
+    - pytest
 
 requirements:
   host:
@@ -42,8 +39,6 @@ requirements:
     - aiohttp
   run:
     - python {{ python }}
-    - setuptools
-    - setuptools_scm
     - ts-idl {{ idl_version }}
     - ts-salobj {{ salobj_version }}
     - aiohttp

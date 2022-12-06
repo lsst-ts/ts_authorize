@@ -41,7 +41,7 @@ from .base_authorize_handler import BaseAuthorizeHandler
 RestMessageType = dict[str, int | float | str]
 RestMessageTypeList = list[RestMessageType]
 
-AUTHLISTREQUEST_API = "/api/authlistrequest/"
+AUTHLISTREQUEST_API = "/manager/api/authlistrequest/"
 AUTHORIZED_PENDING_PARAMS = (
     f"?status=Authorized&execution_status={ExecutionStatus.PENDING}"
 )
@@ -81,8 +81,8 @@ class RestAuthorizeHandler(BaseAuthorizeHandler):
     def __init__(
         self,
         domain: salobj.Domain,
-        log: logging.Logger = None,
-        config: types.SimpleNamespace = None,
+        log: logging.Logger | None = None,
+        config: types.SimpleNamespace | None = None,
     ) -> None:
         super().__init__(domain=domain, log=log, config=config)
         assert self.config is not None
