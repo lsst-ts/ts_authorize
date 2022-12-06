@@ -43,8 +43,8 @@ class BaseAuthorizeHandler(ABC):
     def __init__(
         self,
         domain: salobj.Domain,
-        log: logging.Logger = None,
-        config: types.SimpleNamespace = None,
+        log: logging.Logger | None = None,
+        config: types.SimpleNamespace | None = None,
     ) -> None:
         if log is not None:
             self.log = log.getChild(type(self).__name__)
