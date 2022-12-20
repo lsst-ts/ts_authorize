@@ -20,6 +20,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import asyncio
+import os
 import pathlib
 import typing
 import unittest
@@ -32,6 +33,9 @@ from lsst.ts.authorize.testutils import (
     NON_EXISTENT_CSC,
     PENDING_AUTH_REQUESTS,
     TEST_DATA,
+    VALID_AUTHLIST_USER_NAME,
+    VALID_AUTHLIST_USER_PASS,
+    get_token,
 )
 
 # Timeout for a long operation (sec), including waiting for Authorize
@@ -156,15 +160,27 @@ class AuthorizeTestCase(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTestCase
                 )
 
     async def test_request_rest_authorization(self) -> None:
+        # Prepare the username and password for authentication.
+        os.environ["AUTHLIST_USER_NAME"] = VALID_AUTHLIST_USER_NAME
+        os.environ["AUTHLIST_USER_PASS"] = VALID_AUTHLIST_USER_PASS
+
         # Start the MockWebServer context manager first to avoid
         # "Cannot connect to host localhost:5000" errors.
-        async with authorize.MockWebServer() as mock_web_server, self.make_csc(
+        async with authorize.MockWebServer(
+            token=get_token()
+        ) as mock_web_server, self.make_csc(
             config_dir=TEST_CONFIG_DIR,
             initial_state=salobj.State.ENABLED,
             override="test_rest_config.yaml",
-        ), authorize.MinimalTestCsc(index=INDEX1) as csc1, authorize.MinimalTestCsc(
+        ), authorize.MinimalTestCsc(
+            index=INDEX1
+        ) as csc1, authorize.MinimalTestCsc(
             index=INDEX2
         ) as csc2:
+            # Make sure the handler isn't running in the background to avoid
+            # timing issues.
+            await self.csc.authorize_handler.stop()
+
             td = TEST_DATA[0]
             mock_web_server.expected_rest_message = PENDING_AUTH_REQUESTS[
                 0
@@ -191,11 +207,19 @@ class AuthorizeTestCase(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTestCase
             )
 
     async def test_process_approved_and_unprocessed_auth_requests(self) -> None:
-        async with authorize.MockWebServer() as mock_web_server, self.make_csc(
+        # Prepare the username and password for authentication.
+        os.environ["AUTHLIST_USER_NAME"] = VALID_AUTHLIST_USER_NAME
+        os.environ["AUTHLIST_USER_PASS"] = VALID_AUTHLIST_USER_PASS
+
+        async with authorize.MockWebServer(
+            token=get_token()
+        ) as mock_web_server, self.make_csc(
             config_dir=TEST_CONFIG_DIR,
             initial_state=salobj.State.ENABLED,
             override="test_rest_config.yaml",
-        ), authorize.MinimalTestCsc(index=INDEX1) as csc1, authorize.MinimalTestCsc(
+        ), authorize.MinimalTestCsc(
+            index=INDEX1
+        ) as csc1, authorize.MinimalTestCsc(
             index=INDEX2
         ) as csc2:
             aar = APPROVED_AUTH_REQUESTS[0]

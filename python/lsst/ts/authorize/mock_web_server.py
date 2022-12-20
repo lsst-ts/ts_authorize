@@ -21,34 +21,52 @@
 
 from __future__ import annotations
 
+import json
 from types import TracebackType
 from typing import Type
 
-from aiohttp import web
+from aiohttp import web, web_exceptions
 from aiohttp.test_utils import TestServer
 
-from .handler import AUTHLISTREQUEST_API, ID_EXECUTE_PARAMS, RestMessageTypeList
+from .handler import (
+    AUTHLISTREQUEST_ENDPOINT,
+    GET_TOKEN_ENDPOINT,
+    ID_EXECUTE_PARAMS,
+    RestMessageType,
+)
 from .handler_utils import ExecutionStatus
-from .testutils import APPROVED_PROCESSED_AUTH_REQUESTS
+from .testutils import (
+    APPROVED_PROCESSED_AUTH_REQUESTS,
+    VALID_AUTHLIST_USER_NAME,
+    VALID_AUTHLIST_USER_PASS,
+)
 
 
 class MockWebServer:
     """Mock Web Server for unit tests."""
 
-    def __init__(self) -> None:
+    def __init__(self, token: str) -> None:
         app = web.Application()
-        app.router.add_get(AUTHLISTREQUEST_API, self.request_handler)
-        app.router.add_post(AUTHLISTREQUEST_API, self.request_handler)
-        app.router.add_put(
-            AUTHLISTREQUEST_API + ID_EXECUTE_PARAMS, self.put_request_handler
+        app.add_routes(
+            [
+                web.get(AUTHLISTREQUEST_ENDPOINT, self.request_handler),
+                web.post(AUTHLISTREQUEST_ENDPOINT, self.request_handler),
+                web.post(GET_TOKEN_ENDPOINT, self.get_token_handler),
+                web.put(
+                    AUTHLISTREQUEST_ENDPOINT + ID_EXECUTE_PARAMS,
+                    self.put_request_handler,
+                ),
+            ]
         )
         self.server = TestServer(app=app, port=5000)
         # The expected result.
-        self.expected_rest_message: RestMessageTypeList = []
+        self.expected_rest_message: list[RestMessageType] = []
         # The expected execution status.
         self.expected_execution_status = ExecutionStatus.PENDING
         # The expected execution message.
         self.expected_execution_message = ""
+        # The token for authentication.
+        self.token = token
 
     def __enter__(self) -> None:
         # This class only implements an async context manager.
@@ -69,15 +87,96 @@ class MockWebServer:
     ) -> None:
         await self.server.close()
 
+    async def verify_http_status(self, request: web.Request) -> None:
+        """Verify that the requester has authenticated itself.
+
+        Parameters
+        ----------
+        request : `web.Request`
+            The web request to process.
+
+        Raises
+        -------
+        web_exceptions.HTTPUnauthorized
+            In case of missing or invalid credentials.
+        """
+        if (
+            request.headers.get("Authorization") is None
+            or request.headers.get("Authorization") != self.token
+        ):
+            raise web_exceptions.HTTPUnauthorized(
+                body=json.dumps(
+                    {"detail": ["Credentials were not provided or invalid."]}
+                ),
+                content_type="application/json",
+            )
+
     async def request_handler(self, request: web.Request) -> web.Response:
-        """General handler coroutine for the mock REST server."""
+        """General handler coroutine for the mock REST server.
+
+        Parameters
+        ----------
+        request : `web.Request`
+            The web request to process.
+        """
+        await self.verify_http_status(request=request)
         return web.json_response(self.expected_rest_message)
 
     async def put_request_handler(self, request: web.Request) -> web.Response:
-        """PUT handler coroutine for the mock REST server."""
+        """PUT handler coroutine for the mock REST server.
+
+        Parameters
+        ----------
+        request : `web.Request`
+            The web request to process.
+        """
+        await self.verify_http_status(request=request)
         request_id = int(request.match_info["request_id"])
         response_dict = APPROVED_PROCESSED_AUTH_REQUESTS[request_id]
         req_json = await request.json()
         self.expected_execution_status = ExecutionStatus(req_json["execution_status"])
         self.expected_execution_message = req_json["execution_message"]
         return web.json_response(response_dict)
+
+    async def post_request_handler(self, request: web.Request) -> None:
+        """POST handler coroutine for the mock REST server.
+
+        Parameters
+        ----------
+        request : `web.Request`
+            The web request to process.
+        """
+        await self.verify_http_status(request=request)
+
+    async def get_token_handler(self, request: web.Request) -> web.Response:
+        """POST handler coroutine for get token requests to the mock REST
+        server.
+
+        Parameters
+        ----------
+        request : `web.Request`
+            The web request to process.
+
+        Raises
+        ------
+        web_exceptions.HTTPBadRequest
+            In case the provided credentials are incorrect.
+        """
+        req_json = await request.json()
+        if (
+            req_json["username"] == VALID_AUTHLIST_USER_NAME
+            and req_json["password"] == VALID_AUTHLIST_USER_PASS
+        ):
+            return web.json_response({"data": {"token": self.token}})
+        else:
+            self.token = ""
+            raise web_exceptions.HTTPBadRequest(
+                body=json.dumps(
+                    {
+                        "non_field_errors": [
+                            "Unable to log in with provided credentials."
+                        ]
+                    }
+                ),
+                content_type="application/json",
+            )

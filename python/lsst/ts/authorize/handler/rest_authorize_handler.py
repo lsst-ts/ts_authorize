@@ -22,14 +22,17 @@
 __all__ = [
     "RestAuthorizeHandler",
     "RestMessageType",
-    "RestMessageTypeList",
-    "AUTHLISTREQUEST_API",
+    "AUTHLISTREQUEST_ENDPOINT",
+    "GET_TOKEN_ENDPOINT",
     "ID_EXECUTE_PARAMS",
 ]
 
 import asyncio
 import logging
+import os
 import types
+from http import HTTPStatus
+from typing import Any
 
 import aiohttp
 from lsst.ts import salobj
@@ -38,13 +41,16 @@ from ..handler_utils import AuthRequestData, ExecutionStatus
 from .base_authorize_handler import BaseAuthorizeHandler
 
 # Define data types for improved readability of the code.
-RestMessageType = dict[str, int | float | str]
-RestMessageTypeList = list[RestMessageType]
+RestMessageType = dict[str, int | float | str | dict[str, Any]]
+RequestMessageType = dict[str, Any]
+HeadersType = dict[str, str]
 
-AUTHLISTREQUEST_API = "/manager/api/authlistrequest/"
+
+AUTHLISTREQUEST_ENDPOINT = "/manager/api/authlistrequest/"
 AUTHORIZED_PENDING_PARAMS = (
     f"?status=Authorized&execution_status={ExecutionStatus.PENDING}"
 )
+GET_TOKEN_ENDPOINT = "/manager/api/get-token/"
 ID_EXECUTE_PARAMS = "{request_id}/execute"
 
 
@@ -52,7 +58,7 @@ class RestAuthorizeHandler(BaseAuthorizeHandler):
     """Authorize handler that uses REST calls to communicate with a REST
     server.
 
-    Forward any incoming authrization requests to the REST server so
+    Forward any incoming authorization requests to the REST server so
     an operator can approve or deny the request. Periodically poll the REST
     server for approved but unprocessed authorization requests so the
     corresponding CSCs may be informed.
@@ -71,9 +77,14 @@ class RestAuthorizeHandler(BaseAuthorizeHandler):
     ----------
     response : `list` of `dict`
         A unmarshalled JSON response from the REST server.
-    rest_url : `str`
-        The REST entry point constructed from the host and port as provided via
-        the config.
+    authlistrequest_url : `str`
+        The Auth List Request REST endpoint constructed from the host and port
+        as provided via the config.
+    get_token_url : `str`
+        The Get Token REST endpoint constructed from the host and port as
+        provided via the config.
+    token : `str`
+        The authentication token to put in the request headers.
     lock : `asyncio.Lock`
         A Lock to ensure that certain operations are performed atomically.
     """
@@ -86,42 +97,98 @@ class RestAuthorizeHandler(BaseAuthorizeHandler):
     ) -> None:
         super().__init__(domain=domain, log=log, config=config)
         assert self.config is not None
-        self.response: None | RestMessageTypeList = None
-        self.rest_url = (
-            f"http://{self.config.host}:{self.config.port}" + AUTHLISTREQUEST_API
+        self.response: None | RestMessageType | list[RestMessageType] = None
+        self.authlistrequest_url = (
+            f"http://{self.config.host}:{self.config.port}" + AUTHLISTREQUEST_ENDPOINT
         )
+        self.get_token_url = (
+            f"http://{self.config.host}:{self.config.port}" + GET_TOKEN_ENDPOINT
+        )
+        self.token = ""
         # Lock to prevent concurrent execution of GET and POST.
         self.lock = asyncio.Lock()
+        self.username = os.getenv("AUTHLIST_USER_NAME")
+        self.password = os.getenv("AUTHLIST_USER_PASS")
+        if self.username is None or self.password is None:
+            raise RuntimeError(
+                "Please set AUTHLIST_USER_NAME and AUTHLIST_USER_PASS environment variables."
+            )
+
+    async def _get_post_response(
+        self, url: str, json: RequestMessageType, headers: HeadersType
+    ) -> RestMessageType | list[RestMessageType]:
+        async with self.lock, aiohttp.ClientSession(headers=headers) as session:
+            async with session.post(url=url, json=json) as resp:
+                if resp.status == HTTPStatus.OK:
+                    return await resp.json()
+                else:
+                    resp_json = await resp.json()
+                    raise RuntimeError(
+                        f"Got HTTP response status {resp.status} == {HTTPStatus(resp.status).name} "
+                        f"and {resp_json=!s}."
+                    )
+
+    async def authenticate(self) -> None:
+        """Authenticate against the REST server.
+
+        Raises
+        ------
+        `RuntimeError`
+            In case of an unexpected response.
+        """
+        json = {"username": self.username, "password": self.password}
+        self.response = await self._get_post_response(
+            url=self.get_token_url, json=json, headers={}
+        )
+        assert isinstance(self.response, dict)  # keep MyPy happy.
+        if "data" in self.response.keys():
+            assert isinstance(self.response["data"], dict)  # keep MyPy happy.
+            self.token = self.response["data"]["token"]
+        else:
+            self.token = ""
+            raise RuntimeError(f"Got unexpected response {self.response}.")
 
     async def handle_authorize_request(self, data: AuthRequestData) -> None:
-        # Send a POST with the authorize request data. The reply received from
-        # the REST server is not used and is stored for testing purposes.
-        async with self.lock, aiohttp.ClientSession() as session:
-            async with session.post(
-                self.rest_url,
-                json={
-                    "cscs_to_change": data.cscs_to_change,
-                    "authorized_users": data.authorized_users,
-                    "unauthorized_cscs": data.non_authorized_cscs,
-                    "requested_by": data.private_identity,
-                },
-            ) as resp:
-                self.response = await resp.json()
+        """Send a POST with the authorize request data.
 
-    async def process_approved_and_unprocessed_auth_requests(
-        self,
-    ) -> None:
+        The reply received from the REST server is not used and is stored for
+        testing purposes.
+
+        Parameters
+        ----------
+        data : `AuthRequestData`
+            The auth request data.
+        """
+        await self.authenticate()
+        json = {
+            "cscs_to_change": data.cscs_to_change,
+            "authorized_users": data.authorized_users,
+            "unauthorized_cscs": data.non_authorized_cscs,
+            "requested_by": data.private_identity,
+        }
+        headers = {"Authorization": self.token}
+        self.response = await self._get_post_response(
+            url=self.authlistrequest_url, json=json, headers=headers
+        )
+
+    async def process_approved_and_unprocessed_auth_requests(self) -> None:
         """GET the approved and unprocessed authorize requests from the REST
         server and process them.
 
         These are authorize requests that have been approved by an
         operator and that have not been processed by this CSC yet.
         """
-        async with self.lock, aiohttp.ClientSession() as session:
-            async with session.get(self.rest_url + AUTHORIZED_PENDING_PARAMS) as resp:
+        await self.authenticate()
+        async with self.lock, aiohttp.ClientSession(
+            headers={"Authorization": self.token}
+        ) as session:
+            async with session.get(
+                self.authlistrequest_url + AUTHORIZED_PENDING_PARAMS
+            ) as resp:
                 self.response = await resp.json()
                 if self.response is not None:
                     for response in self.response:
+                        assert isinstance(response, dict)  # keep MyPy happy.
                         data = AuthRequestData(
                             authorized_users=str(response["authorized_users"]),
                             cscs_to_change=str(response["cscs_to_change"]),
@@ -150,7 +217,7 @@ class RestAuthorizeHandler(BaseAuthorizeHandler):
                             execution_message = execution_message + failed_message
                         put_path = ID_EXECUTE_PARAMS.format(request_id=response_id)
                         async with session.put(
-                            self.rest_url + put_path,
+                            self.authlistrequest_url + put_path,
                             json={
                                 "execution_status": execution_status,
                                 "execution_message": execution_message,
