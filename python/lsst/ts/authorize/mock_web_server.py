@@ -96,7 +96,7 @@ class MockWebServer:
             The web request to process.
 
         Raises
-        -------
+        ------
         web_exceptions.HTTPUnauthorized
             In case of missing or invalid credentials.
         """
