@@ -19,10 +19,11 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+import secrets
 from dataclasses import dataclass
 from enum import Enum
 
-from .handler import RestMessageType, RestMessageTypeList
+from .handler import RestMessageType
 from .handler_utils import AuthRequestData, ExecutionStatus
 
 # Indices to be used for Test CSCs.
@@ -47,6 +48,20 @@ TEST_CSCS_2 = {"AT", "seisen:22"}
 CSCS_TO_REMOVE = {"XKCD:47", "AT", NON_EXISTENT_CSC}
 JOINED_TEST_CSCS = TEST_CSCS_1 | TEST_CSCS_2
 REMAINING_CSCS = JOINED_TEST_CSCS - CSCS_TO_REMOVE
+
+# Valid authentication data.
+VALID_AUTHLIST_USER_NAME = "test1@localhost"
+VALID_AUTHLIST_USER_PASS = "test12345678"
+
+# Invalid authentication data.
+INVALID_AUTHLIST_USER_NAME = "test2@localhost"
+INVALID_AUTHLIST_USER_PASS = "test2468"
+
+
+# A LOVE authentication token has 40 characters so `token_hex` needs to
+# randomly select 20 bytes since each byte gets decoded to 2 hex characters.
+def get_token() -> str:
+    return secrets.token_hex(20)
 
 
 class RequestStatus(str, Enum):
@@ -128,7 +143,7 @@ class RestMessage:
 
 @dataclass
 class RestMessageData:
-    rest_messages: RestMessageTypeList
+    rest_messages: list[RestMessageType]
     expected_authorized_users: list[set[str]]
     expected_non_authorized_cscs: list[set[str]]
     expected_failed_cscs: dict[str, str]

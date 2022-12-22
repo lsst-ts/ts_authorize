@@ -6,6 +6,16 @@
 Version History
 ###############
 
+v0.6.4
+------
+
+* Added authentication to the RestAuthorizeHandler.
+
+Requirements:
+
+* ts_salobj 7
+* IDL files for Authorize plus, all subsystems to authorize, built with ts_xml 11
+
 v0.6.3
 ------
 
