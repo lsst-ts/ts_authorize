@@ -10,6 +10,7 @@ v0.6.5
 ------
 
 * Fix wrong docstring formatting.
+* Code improvements related to review comments.
 
 Requirements:
 
