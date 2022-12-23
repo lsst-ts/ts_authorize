@@ -22,23 +22,19 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Iterable
 from types import TracebackType
 from typing import Type
 
 from aiohttp import web, web_exceptions
 from aiohttp.test_utils import TestServer
 
-from .handler import (
-    AUTHLISTREQUEST_ENDPOINT,
-    GET_TOKEN_ENDPOINT,
-    ID_EXECUTE_PARAMS,
-    RestMessageType,
-)
-from .handler_utils import ExecutionStatus
+from .handler import AUTHLISTREQUEST_ENDPOINT, GET_TOKEN_ENDPOINT, ID_EXECUTE_PARAMS
+from .handler_utils import ExecutionStatus, RestMessageType
 from .testutils import (
     APPROVED_PROCESSED_AUTH_REQUESTS,
-    VALID_AUTHLIST_USER_NAME,
-    VALID_AUTHLIST_USER_PASS,
+    VALID_AUTHLIST_PASSWORD,
+    VALID_AUTHLIST_USERNAME,
 )
 
 
@@ -60,7 +56,7 @@ class MockWebServer:
         )
         self.server = TestServer(app=app, port=5000)
         # The expected result.
-        self.expected_rest_message: list[RestMessageType] = []
+        self.expected_rest_message: Iterable[RestMessageType] = []
         # The expected execution status.
         self.expected_execution_status = ExecutionStatus.PENDING
         # The expected execution message.
@@ -164,8 +160,9 @@ class MockWebServer:
         """
         req_json = await request.json()
         if (
-            req_json["username"] == VALID_AUTHLIST_USER_NAME
-            and req_json["password"] == VALID_AUTHLIST_USER_PASS
+            req_json["username"] == VALID_AUTHLIST_USERNAME
+            and req_json["password"] == VALID_AUTHLIST_PASSWORD
+            and self.token != ""
         ):
             return web.json_response({"data": {"token": self.token}})
         else:

@@ -33,8 +33,8 @@ from lsst.ts.authorize.testutils import (
     NON_EXISTENT_CSC,
     PENDING_AUTH_REQUESTS,
     TEST_DATA,
-    VALID_AUTHLIST_USER_NAME,
-    VALID_AUTHLIST_USER_PASS,
+    VALID_AUTHLIST_PASSWORD,
+    VALID_AUTHLIST_USERNAME,
     get_token,
 )
 
@@ -161,8 +161,8 @@ class AuthorizeTestCase(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTestCase
 
     async def test_request_rest_authorization(self) -> None:
         # Prepare the username and password for authentication.
-        os.environ["AUTHLIST_USER_NAME"] = VALID_AUTHLIST_USER_NAME
-        os.environ["AUTHLIST_USER_PASS"] = VALID_AUTHLIST_USER_PASS
+        os.environ["AUTHLIST_USER_NAME"] = VALID_AUTHLIST_USERNAME
+        os.environ["AUTHLIST_USER_PASS"] = VALID_AUTHLIST_PASSWORD
 
         # Start the MockWebServer context manager first to avoid
         # "Cannot connect to host localhost:5000" errors.
@@ -208,8 +208,8 @@ class AuthorizeTestCase(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTestCase
 
     async def test_process_approved_and_unprocessed_auth_requests(self) -> None:
         # Prepare the username and password for authentication.
-        os.environ["AUTHLIST_USER_NAME"] = VALID_AUTHLIST_USER_NAME
-        os.environ["AUTHLIST_USER_PASS"] = VALID_AUTHLIST_USER_PASS
+        os.environ["AUTHLIST_USER_NAME"] = VALID_AUTHLIST_USERNAME
+        os.environ["AUTHLIST_USER_PASS"] = VALID_AUTHLIST_PASSWORD
 
         async with authorize.MockWebServer(
             token=get_token()

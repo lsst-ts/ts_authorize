@@ -20,11 +20,11 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import secrets
+from collections.abc import Iterable
 from dataclasses import dataclass
 from enum import Enum
 
-from .handler import RestMessageType
-from .handler_utils import AuthRequestData, ExecutionStatus
+from .handler_utils import AuthRequestData, ExecutionStatus, RestMessageType
 
 # Indices to be used for Test CSCs.
 INDEX1 = 5
@@ -50,12 +50,12 @@ JOINED_TEST_CSCS = TEST_CSCS_1 | TEST_CSCS_2
 REMAINING_CSCS = JOINED_TEST_CSCS - CSCS_TO_REMOVE
 
 # Valid authentication data.
-VALID_AUTHLIST_USER_NAME = "test1@localhost"
-VALID_AUTHLIST_USER_PASS = "test12345678"
+VALID_AUTHLIST_USERNAME = "test1@localhost"
+VALID_AUTHLIST_PASSWORD = "test12345678"
 
 # Invalid authentication data.
-INVALID_AUTHLIST_USER_NAME = "test2@localhost"
-INVALID_AUTHLIST_USER_PASS = "test2468"
+INVALID_AUTHLIST_USERNAME = "test2@localhost"
+INVALID_AUTHLIST_PASSWORD = "test2468"
 
 
 # A LOVE authentication token has 40 characters so `token_hex` needs to
@@ -143,7 +143,7 @@ class RestMessage:
 
 @dataclass
 class RestMessageData:
-    rest_messages: list[RestMessageType]
+    rest_messages: Iterable[RestMessageType]
     expected_authorized_users: list[set[str]]
     expected_non_authorized_cscs: list[set[str]]
     expected_failed_cscs: dict[str, str]
