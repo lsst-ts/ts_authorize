@@ -31,20 +31,20 @@ import asyncio
 import logging
 import os
 import types
+from collections.abc import Iterable
 from http import HTTPStatus
-from typing import Any
 
 import aiohttp
 from lsst.ts import salobj
 
-from ..handler_utils import AuthRequestData, ExecutionStatus
+from ..handler_utils import (
+    AuthRequestData,
+    ExecutionStatus,
+    HeadersType,
+    RequestMessageType,
+    RestMessageType,
+)
 from .base_authorize_handler import BaseAuthorizeHandler
-
-# Define data types for improved readability of the code.
-RestMessageType = dict[str, int | float | str | dict[str, Any]]
-RequestMessageType = dict[str, Any]
-HeadersType = dict[str, str]
-
 
 AUTHLISTREQUEST_ENDPOINT = "/manager/api/authlistrequest/"
 AUTHORIZED_PENDING_PARAMS = (
@@ -97,7 +97,7 @@ class RestAuthorizeHandler(BaseAuthorizeHandler):
     ) -> None:
         super().__init__(domain=domain, log=log, config=config)
         assert self.config is not None
-        self.response: None | RestMessageType | list[RestMessageType] = None
+        self.response: None | RestMessageType | Iterable[RestMessageType] = None
         self.authlistrequest_url = (
             f"http://{self.config.host}:{self.config.port}" + AUTHLISTREQUEST_ENDPOINT
         )
@@ -116,7 +116,7 @@ class RestAuthorizeHandler(BaseAuthorizeHandler):
 
     async def _get_post_response(
         self, url: str, json: RequestMessageType, headers: HeadersType
-    ) -> RestMessageType | list[RestMessageType]:
+    ) -> RestMessageType | Iterable[RestMessageType]:
         async with self.lock, aiohttp.ClientSession(headers=headers) as session:
             async with session.post(url=url, json=json) as resp:
                 if resp.status == HTTPStatus.OK:

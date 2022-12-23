@@ -25,17 +25,26 @@ import collections
 import re
 from dataclasses import dataclass
 from enum import Enum
+from typing import Any
 
 from lsst.ts import salobj
 
 __all__ = [
     "AuthRequestData",
     "ExecutionStatus",
+    "HeadersType",
+    "RestMessageType",
+    "RequestMessageType",
     "check_cscs",
     "check_user_hosts",
     "create_failed_error_message",
     "set_from_comma_separated_string",
 ]
+
+# Define data types for improved readability of the code.
+RestMessageType = dict[str, int | float | str | dict[str, Any]]
+RequestMessageType = dict[str, Any]
+HeadersType = dict[str, str]
 
 CSC_NAME_INDEX_RE = re.compile(r"^[a-zA-Z][_A-Za-z0-9]*(:\d+)?$")
 USER_HOST_RE = re.compile(r"^[a-zA-Z][-._A-Za-z0-9]*@[a-zA-Z0-9][-._A-Za-z0-9]*$")
