@@ -30,11 +30,11 @@ from lsst.ts.authorize.testutils import (
     APPROVED_PROCESSED_AUTH_REQUESTS,
     INDEX1,
     INDEX2,
-    INVALID_AUTHLIST_USER_NAME,
-    INVALID_AUTHLIST_USER_PASS,
+    INVALID_AUTHLIST_PASSWORD,
+    INVALID_AUTHLIST_USERNAME,
     PENDING_AUTH_REQUESTS,
-    VALID_AUTHLIST_USER_NAME,
-    VALID_AUTHLIST_USER_PASS,
+    VALID_AUTHLIST_PASSWORD,
+    VALID_AUTHLIST_USERNAME,
     get_token,
 )
 
@@ -52,8 +52,8 @@ class RestAuthorizeHandlerTestCase(unittest.IsolatedAsyncioTestCase):
         )
 
         # Prepare the username and password for authentication.
-        os.environ["AUTHLIST_USER_NAME"] = VALID_AUTHLIST_USER_NAME
-        os.environ["AUTHLIST_USER_PASS"] = VALID_AUTHLIST_USER_PASS
+        os.environ["AUTHLIST_USER_NAME"] = VALID_AUTHLIST_USERNAME
+        os.environ["AUTHLIST_USER_PASS"] = VALID_AUTHLIST_PASSWORD
 
         self.handler = authorize.handler.RestAuthorizeHandler(
             domain=domain, config=config
@@ -63,23 +63,37 @@ class RestAuthorizeHandlerTestCase(unittest.IsolatedAsyncioTestCase):
     async def test_authenticate(self) -> None:
         async with authorize.MockWebServer(token="") as mock_web_server:
             # Invalid authentication.
-            self.handler.username = INVALID_AUTHLIST_USER_NAME
-            self.handler.password = INVALID_AUTHLIST_USER_PASS
-            with pytest.raises(RuntimeError):
-                await self.handler.authenticate()
+            valid_params = dict(
+                token=get_token(),
+                username=VALID_AUTHLIST_USERNAME,
+                password=VALID_AUTHLIST_PASSWORD,
+            )
+            all_invalid_params = dict(
+                token="",
+                username=INVALID_AUTHLIST_USERNAME,
+                password=INVALID_AUTHLIST_PASSWORD,
+            )
+            for name in ("token", "username", "password"):
+                one_invalid_params = valid_params.copy()
+                one_invalid_params[name] = all_invalid_params[name]
+                mock_web_server.token = one_invalid_params["token"]
+                self.handler.username = one_invalid_params["username"]
+                self.handler.password = one_invalid_params["password"]
+                with pytest.raises(RuntimeError):
+                    await self.handler.authenticate()
 
             # Valid authentication.
             mock_web_server.token = self.token
-            self.handler.username = VALID_AUTHLIST_USER_NAME
-            self.handler.password = VALID_AUTHLIST_USER_PASS
+            self.handler.username = VALID_AUTHLIST_USERNAME
+            self.handler.password = VALID_AUTHLIST_PASSWORD
             await self.handler.authenticate()
             assert self.handler.response["data"]["token"] == self.token
             assert self.handler.token == self.token
 
     async def validate_auth_requests(
         self,
-        response_list: list[authorize.handler.RestMessageType],
-        auth_request_list: list[authorize.handler.RestMessageType],
+        response_list: list[authorize.RestMessageType],
+        auth_request_list: list[authorize.RestMessageType],
     ) -> None:
         assert len(response_list) == len(auth_request_list)
         if len(response_list) > 0:
@@ -136,8 +150,6 @@ class RestAuthorizeHandlerTestCase(unittest.IsolatedAsyncioTestCase):
 
     async def test_handle_authorize_request(self) -> None:
         async with authorize.MockWebServer(token=self.token) as mock_web_server:
-            mock_web_server.token = self.token
-
             for pending_auth_request in PENDING_AUTH_REQUESTS:
                 mock_web_server.expected_rest_message = (
                     pending_auth_request.rest_messages
