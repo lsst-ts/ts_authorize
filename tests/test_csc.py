@@ -180,6 +180,7 @@ class AuthorizeTestCase(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTestCase
             # Make sure the handler isn't running in the background to avoid
             # timing issues.
             await self.csc.authorize_handler.stop()
+            await self.csc.authorize_handler.create_client_session()
 
             td = TEST_DATA[0]
             mock_web_server.expected_rest_message = PENDING_AUTH_REQUESTS[
@@ -205,6 +206,9 @@ class AuthorizeTestCase(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTestCase
                 self.csc.authorize_handler.response
                 == mock_web_server.expected_rest_message
             )
+
+            # Make sure to close the ClientSession in the Authorize Handler.
+            await self.csc.authorize_handler.close_client_session()
 
     async def test_process_approved_and_unprocessed_auth_requests(self) -> None:
         # Prepare the username and password for authentication.

@@ -22,6 +22,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from collections.abc import Iterable
 from types import TracebackType
 from typing import Type
@@ -42,6 +43,7 @@ class MockWebServer:
     """Mock Web Server for unit tests."""
 
     def __init__(self, token: str) -> None:
+        self.log = logging.getLogger(type(self).__name__)
         app = web.Application()
         app.add_routes(
             [
@@ -116,6 +118,7 @@ class MockWebServer:
             The web request to process.
         """
         await self.verify_http_status(request=request)
+        self.log.debug(f"Returning {self.expected_rest_message}")
         return web.json_response(self.expected_rest_message)
 
     async def put_request_handler(self, request: web.Request) -> web.Response:
@@ -132,6 +135,7 @@ class MockWebServer:
         req_json = await request.json()
         self.expected_execution_status = ExecutionStatus(req_json["execution_status"])
         self.expected_execution_message = req_json["execution_message"]
+        self.log.debug(f"PUT returning {response_dict}")
         return web.json_response(response_dict)
 
     async def post_request_handler(self, request: web.Request) -> None:
@@ -164,7 +168,9 @@ class MockWebServer:
             and req_json["password"] == VALID_AUTHLIST_PASSWORD
             and self.token != ""
         ):
-            return web.json_response({"data": {"token": self.token}})
+            data = {"data": {"token": self.token}}
+            self.log.debug(f"GET token returning {data}")
+            return web.json_response(data)
         else:
             self.token = ""
             raise web_exceptions.HTTPBadRequest(
