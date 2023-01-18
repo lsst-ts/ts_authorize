@@ -19,13 +19,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-__all__ = [
-    "RestAuthorizeHandler",
-    "RestMessageType",
-    "AUTHLISTREQUEST_ENDPOINT",
-    "GET_TOKEN_ENDPOINT",
-    "ID_EXECUTE_PARAMS",
-]
+from __future__ import annotations
 
 import asyncio
 import logging
@@ -33,18 +27,22 @@ import os
 import types
 from collections.abc import Iterable
 from http import HTTPStatus
+from types import TracebackType
+from typing import Type
 
 import aiohttp
 from lsst.ts import salobj
 
-from ..handler_utils import (
-    AuthRequestData,
-    ExecutionStatus,
-    HeadersType,
-    RequestMessageType,
-    RestMessageType,
-)
+from ..handler_utils import AuthRequestData, ExecutionStatus, RestMessageType
 from .base_authorize_handler import BaseAuthorizeHandler
+
+__all__ = [
+    "RestAuthorizeHandler",
+    "RestMessageType",
+    "AUTHLISTREQUEST_ENDPOINT",
+    "GET_TOKEN_ENDPOINT",
+    "ID_EXECUTE_PARAMS",
+]
 
 AUTHLISTREQUEST_ENDPOINT = "/manager/api/authlistrequest/"
 AUTHORIZED_PENDING_PARAMS = (
@@ -105,6 +103,7 @@ class RestAuthorizeHandler(BaseAuthorizeHandler):
             f"http://{self.config.host}:{self.config.port}" + GET_TOKEN_ENDPOINT
         )
         self.token = ""
+        self._client_session: aiohttp.ClientSession | None = None
         # Lock to prevent concurrent execution of GET and POST.
         self.lock = asyncio.Lock()
         self.username = os.getenv("AUTHLIST_USER_NAME")
@@ -114,19 +113,17 @@ class RestAuthorizeHandler(BaseAuthorizeHandler):
                 "Please set AUTHLIST_USER_NAME and AUTHLIST_USER_PASS environment variables."
             )
 
-    async def _get_post_response(
-        self, url: str, json: RequestMessageType, headers: HeadersType
+    async def _get_response(
+        self, resp: aiohttp.ClientResponse
     ) -> RestMessageType | Iterable[RestMessageType]:
-        async with self.lock, aiohttp.ClientSession(headers=headers) as session:
-            async with session.post(url=url, json=json) as resp:
-                if resp.status == HTTPStatus.OK:
-                    return await resp.json()
-                else:
-                    resp_json = await resp.json()
-                    raise RuntimeError(
-                        f"Got HTTP response status {resp.status} == {HTTPStatus(resp.status).name} "
-                        f"and {resp_json=!s}."
-                    )
+        if resp.status == HTTPStatus.OK:
+            return await resp.json()
+        else:
+            resp_json = await resp.json()
+            raise RuntimeError(
+                f"Got HTTP response status {resp.status} == {HTTPStatus(resp.status).name} "
+                f"and {resp_json=!s}."
+            )
 
     async def authenticate(self) -> None:
         """Authenticate against the REST server.
@@ -137,16 +134,17 @@ class RestAuthorizeHandler(BaseAuthorizeHandler):
             In case of an unexpected response.
         """
         json = {"username": self.username, "password": self.password}
-        self.response = await self._get_post_response(
-            url=self.get_token_url, json=json, headers={}
-        )
-        assert isinstance(self.response, dict)  # keep MyPy happy.
-        if "data" in self.response.keys():
-            assert isinstance(self.response["data"], dict)  # keep MyPy happy.
-            self.token = self.response["data"]["token"]
-        else:
-            self.token = ""
-            raise RuntimeError(f"Got unexpected response {self.response}.")
+        async with self.lock, self.client_session.post(
+            url=self.get_token_url, json=json
+        ) as resp:
+            self.response = await self._get_response(resp=resp)
+            assert isinstance(self.response, dict)  # keep MyPy happy.
+            if "data" in self.response.keys():
+                assert isinstance(self.response["data"], dict)  # keep MyPy happy.
+                self.token = self.response["data"]["token"]
+            else:
+                self.token = ""
+                raise RuntimeError(f"Got unexpected response {self.response}.")
 
     async def handle_authorize_request(self, data: AuthRequestData) -> None:
         """Send a POST with the authorize request data.
@@ -166,10 +164,12 @@ class RestAuthorizeHandler(BaseAuthorizeHandler):
             "unauthorized_cscs": data.non_authorized_cscs,
             "requested_by": data.private_identity,
         }
-        headers = {"Authorization": self.token}
-        self.response = await self._get_post_response(
-            url=self.authlistrequest_url, json=json, headers=headers
-        )
+        async with self.lock, self.client_session.post(
+            url=self.authlistrequest_url,
+            json=json,
+            headers={"Authorization": self.token},
+        ) as resp:
+            self.response = await self._get_response(resp=resp)
 
     async def process_approved_and_unprocessed_auth_requests(self) -> None:
         """GET the approved and unprocessed authorize requests from the REST
@@ -179,73 +179,92 @@ class RestAuthorizeHandler(BaseAuthorizeHandler):
         operator and that have not been processed by this CSC yet.
         """
         await self.authenticate()
-        async with self.lock, aiohttp.ClientSession(
-            headers={"Authorization": self.token}
-        ) as session:
-            async with session.get(
-                self.authlistrequest_url + AUTHORIZED_PENDING_PARAMS
-            ) as resp:
-                self.response = await resp.json()
-                if self.response is not None:
-                    for response in self.response:
-                        assert isinstance(response, dict)  # keep MyPy happy.
-                        data = AuthRequestData(
-                            authorized_users=str(response["authorized_users"]),
-                            cscs_to_change=str(response["cscs_to_change"]),
-                            non_authorized_cscs=str(response["unauthorized_cscs"]),
-                            private_identity=str(response["requested_by"]),
-                        )
-                        (
-                            csc_failed_messages,
-                            cscs_succeeded,
-                        ) = await self.process_authorize_request(data=data)
+        async with self.lock, self.client_session.get(
+            self.authlistrequest_url + AUTHORIZED_PENDING_PARAMS,
+            headers={"Authorization": self.token},
+        ) as resp:
+            self.response = await self._get_response(resp=resp)
+            if self.response is not None:
+                for response in self.response:
+                    assert isinstance(response, dict)  # keep MyPy happy.
+                    data = AuthRequestData(
+                        authorized_users=str(response["authorized_users"]),
+                        cscs_to_change=str(response["cscs_to_change"]),
+                        non_authorized_cscs=str(response["unauthorized_cscs"]),
+                        private_identity=str(response["requested_by"]),
+                    )
+                    (
+                        csc_failed_messages,
+                        cscs_succeeded,
+                    ) = await self.process_authorize_request(data=data)
 
-                        response_id = response["id"]
-                        execution_status = ExecutionStatus.SUCCESSFUL
-                        execution_message = (
-                            "The following CSCs were updated correctly: "
-                            + ", ".join(sorted(cscs_succeeded))
+                    response_id = response["id"]
+                    execution_status = ExecutionStatus.SUCCESSFUL
+                    execution_message = (
+                        "The following CSCs were updated correctly: "
+                        + ", ".join(sorted(cscs_succeeded))
+                        + "."
+                    )
+                    if len(csc_failed_messages) > 0:
+                        execution_status = ExecutionStatus.FAILED
+                        failed_message = (
+                            " The following CSCs failed to update correctly: "
+                            + ", ".join(sorted(csc_failed_messages.keys()))
                             + "."
                         )
-                        if len(csc_failed_messages) > 0:
-                            execution_status = ExecutionStatus.FAILED
-                            failed_message = (
-                                " The following CSCs failed to update correctly: "
-                                + ", ".join(sorted(csc_failed_messages.keys()))
-                                + "."
+                        execution_message = execution_message + failed_message
+                    put_path = ID_EXECUTE_PARAMS.format(request_id=response_id)
+                    async with self.client_session.put(
+                        self.authlistrequest_url + put_path,
+                        json={
+                            "execution_status": execution_status,
+                            "execution_message": execution_message,
+                        },
+                        headers={"Authorization": self.token},
+                    ) as put_resp:
+                        put_resp_json = await self._get_response(resp=put_resp)
+                        assert isinstance(put_resp_json, dict)  # keep MyPy happy.
+                        put_resp_id = put_resp_json["id"]
+                        put_resp_exec_stat = put_resp_json["execution_status"]
+                        put_resp_exec_msg = put_resp_json["execution_message"]
+                        if put_resp_id != response_id:
+                            self.log.error(
+                                f"Response id = {put_resp_id} != request id = {response_id}"
                             )
-                            execution_message = execution_message + failed_message
-                        put_path = ID_EXECUTE_PARAMS.format(request_id=response_id)
-                        async with session.put(
-                            self.authlistrequest_url + put_path,
-                            json={
-                                "execution_status": execution_status,
-                                "execution_message": execution_message,
-                            },
-                        ) as put_resp:
-                            put_resp_json = await put_resp.json()
-                            put_resp_id = put_resp_json["id"]
-                            put_resp_exec_stat = put_resp_json["execution_status"]
-                            put_resp_exec_msg = put_resp_json["execution_message"]
-                            if put_resp_id != response_id:
+                        else:
+                            if put_resp_exec_stat != execution_status:
                                 self.log.error(
-                                    f"Response id = {put_resp_id} != request id = {response_id}"
+                                    f"Response id = {put_resp_id} == request id = {response_id} "
+                                    f"but response execution status = {put_resp_exec_stat} != "
+                                    f"request execution status {execution_status}"
                                 )
-                            else:
-                                if put_resp_exec_stat != execution_status:
-                                    self.log.error(
-                                        f"Response id = {put_resp_id} == request id = {response_id} "
-                                        f"but response execution status = {put_resp_exec_stat} != "
-                                        f"request execution status {execution_status}"
-                                    )
-                                if put_resp_exec_msg != execution_message:
-                                    self.log.error(
-                                        f"Response id = {put_resp_id} == request id = {response_id} "
-                                        f"but response execution message = {put_resp_exec_msg} != "
-                                        f"request execution message {execution_message}"
-                                    )
+                            if put_resp_exec_msg != execution_message:
+                                self.log.error(
+                                    f"Response id = {put_resp_id} == request id = {response_id} "
+                                    f"but response execution message = {put_resp_exec_msg} != "
+                                    f"request execution message {execution_message}"
+                                )
+
+    async def perform_periodic_task(self, sleep_time: float) -> None:
+        while True:
+            await self.process_approved_and_unprocessed_auth_requests()
+            await asyncio.sleep(sleep_time)
+
+    @property
+    def client_session(self) -> aiohttp.ClientSession:
+        assert self._client_session is not None
+        return self._client_session
+
+    async def create_client_session(self) -> None:
+        if not self._client_session or self._client_session.closed:
+            self._client_session = aiohttp.ClientSession()
+
+    async def close_client_session(self) -> None:
+        if self._client_session and not self._client_session.closed:
+            await self._client_session.close()
 
     async def start(self, sleep_time: float) -> None:
+        await self.create_client_session()
         # Make sure the task is not already running.
         self.periodic_task.cancel()
         # Now start the task.
@@ -253,8 +272,23 @@ class RestAuthorizeHandler(BaseAuthorizeHandler):
 
     async def stop(self) -> None:
         self.periodic_task.cancel()
+        await self.close_client_session()
 
-    async def perform_periodic_task(self, sleep_time: float) -> None:
-        while True:
-            await self.process_approved_and_unprocessed_auth_requests()
-            await asyncio.sleep(sleep_time)
+    def __enter__(self) -> None:
+        # This class only implements an async context manager.
+        raise NotImplementedError("Use 'async with' instead.")
+
+    def __exit__(
+        self, type: Type[BaseException], value: BaseException, traceback: TracebackType
+    ) -> None:
+        # __exit__ should exist in pair with __enter__ but never be executed.
+        raise NotImplementedError("Use 'async with' instead.")
+
+    async def __aenter__(self) -> RestAuthorizeHandler:
+        await self.create_client_session()
+        return self
+
+    async def __aexit__(
+        self, type: Type[BaseException], value: BaseException, traceback: TracebackType
+    ) -> None:
+        await self.close_client_session()

@@ -164,6 +164,12 @@ class BaseAuthorizeHandler(ABC):
 
         return cscs_to_command
 
+    async def create_client_session(self) -> None:
+        pass
+
+    async def close_client_session(self) -> None:
+        pass
+
     async def start(self, sleep_time: float) -> None:
         pass
 
