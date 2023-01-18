@@ -44,24 +44,24 @@ class RestAuthorizeHandlerTestCase(unittest.IsolatedAsyncioTestCase):
         salobj.set_random_lsst_dds_partition_prefix()
 
         # SalObj Domain for the RestAuthorizeHandler.
-        domain = salobj.Domain()
+        self.domain = salobj.Domain()
         # Configuration for the RestAuthorizeHandler.
-        config = types.SimpleNamespace(
+        self.config = types.SimpleNamespace(
             host="localhost",
             port=5000,
         )
 
-        # Prepare the username and password for authentication.
+        # Prepare the username, password and token for authentication.
         os.environ["AUTHLIST_USER_NAME"] = VALID_AUTHLIST_USERNAME
         os.environ["AUTHLIST_USER_PASS"] = VALID_AUTHLIST_PASSWORD
-
-        self.handler = authorize.handler.RestAuthorizeHandler(
-            domain=domain, config=config
-        )
         self.token = get_token()
 
     async def test_authenticate(self) -> None:
-        async with authorize.MockWebServer(token="") as mock_web_server:
+        async with authorize.MockWebServer(
+            token=""
+        ) as mock_web_server, authorize.RestAuthorizeHandler(
+            domain=self.domain, config=self.config
+        ) as handler:
             # Invalid authentication.
             valid_params = dict(
                 token=get_token(),
@@ -77,18 +77,18 @@ class RestAuthorizeHandlerTestCase(unittest.IsolatedAsyncioTestCase):
                 one_invalid_params = valid_params.copy()
                 one_invalid_params[name] = all_invalid_params[name]
                 mock_web_server.token = one_invalid_params["token"]
-                self.handler.username = one_invalid_params["username"]
-                self.handler.password = one_invalid_params["password"]
+                handler.username = one_invalid_params["username"]
+                handler.password = one_invalid_params["password"]
                 with pytest.raises(RuntimeError):
-                    await self.handler.authenticate()
+                    await handler.authenticate()
 
             # Valid authentication.
             mock_web_server.token = self.token
-            self.handler.username = VALID_AUTHLIST_USERNAME
-            self.handler.password = VALID_AUTHLIST_PASSWORD
-            await self.handler.authenticate()
-            assert self.handler.response["data"]["token"] == self.token
-            assert self.handler.token == self.token
+            handler.username = VALID_AUTHLIST_USERNAME
+            handler.password = VALID_AUTHLIST_PASSWORD
+            await handler.authenticate()
+            assert handler.response["data"]["token"] == self.token
+            assert handler.token == self.token
 
     async def validate_auth_requests(
         self,
@@ -111,7 +111,9 @@ class RestAuthorizeHandlerTestCase(unittest.IsolatedAsyncioTestCase):
             index=INDEX2
         ) as csc2, authorize.MockWebServer(
             token=self.token
-        ) as mock_web_server:
+        ) as mock_web_server, authorize.RestAuthorizeHandler(
+            domain=self.domain, config=self.config
+        ) as handler:
             assert csc1.salinfo.authorized_users == set()
             assert csc1.salinfo.non_authorized_cscs == set()
             assert csc2.salinfo.authorized_users == set()
@@ -119,9 +121,9 @@ class RestAuthorizeHandlerTestCase(unittest.IsolatedAsyncioTestCase):
 
             for aar in APPROVED_AUTH_REQUESTS:
                 mock_web_server.expected_rest_message = aar.rest_messages
-                await self.handler.process_approved_and_unprocessed_auth_requests()
+                await handler.process_approved_and_unprocessed_auth_requests()
                 await self.validate_auth_requests(
-                    response_list=self.handler.response,
+                    response_list=handler.response,
                     auth_request_list=mock_web_server.expected_rest_message,
                 )
 
@@ -149,7 +151,11 @@ class RestAuthorizeHandlerTestCase(unittest.IsolatedAsyncioTestCase):
                 )
 
     async def test_handle_authorize_request(self) -> None:
-        async with authorize.MockWebServer(token=self.token) as mock_web_server:
+        async with authorize.MockWebServer(
+            token=self.token
+        ) as mock_web_server, authorize.RestAuthorizeHandler(
+            domain=self.domain, config=self.config
+        ) as handler:
             for pending_auth_request in PENDING_AUTH_REQUESTS:
                 mock_web_server.expected_rest_message = (
                     pending_auth_request.rest_messages
@@ -167,8 +173,8 @@ class RestAuthorizeHandlerTestCase(unittest.IsolatedAsyncioTestCase):
                     private_identity="RestAuthorizeHandlerTestCase",
                 )
 
-                await self.handler.handle_authorize_request(data)
+                await handler.handle_authorize_request(data)
                 await self.validate_auth_requests(
-                    response_list=self.handler.response,
+                    response_list=handler.response,
                     auth_request_list=mock_web_server.expected_rest_message,
                 )
