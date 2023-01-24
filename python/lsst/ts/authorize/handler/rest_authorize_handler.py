@@ -133,17 +133,21 @@ class RestAuthorizeHandler(BaseAuthorizeHandler):
         `RuntimeError`
             In case of an unexpected response.
         """
+        assert self.config is not None
+        self.log.debug(f"Authenticating against host {self.config.host}.")
         json = {"username": self.username, "password": self.password}
         async with self.lock, self.client_session.post(
             url=self.get_token_url, json=json
         ) as resp:
             self.response = await self._get_response(resp=resp)
             assert isinstance(self.response, dict)  # keep MyPy happy.
-            if "data" in self.response.keys():
-                assert isinstance(self.response["data"], dict)  # keep MyPy happy.
-                self.token = self.response["data"]["token"]
+            if "token" in self.response.keys():
+                assert isinstance(self.response["token"], str)  # keep MyPy happy.
+                self.token = self.response["token"]
+                self.log.debug("Authentication successful.")
             else:
                 self.token = ""
+                self.log.error("Authentication unsuccessful.")
                 raise RuntimeError(f"Got unexpected response {self.response}.")
 
     async def handle_authorize_request(self, data: AuthRequestData) -> None:
@@ -157,6 +161,7 @@ class RestAuthorizeHandler(BaseAuthorizeHandler):
         data : `AuthRequestData`
             The auth request data.
         """
+        self.log.debug("handle_authorize_request")
         await self.authenticate()
         json = {
             "cscs_to_change": data.cscs_to_change,
@@ -178,6 +183,7 @@ class RestAuthorizeHandler(BaseAuthorizeHandler):
         These are authorize requests that have been approved by an
         operator and that have not been processed by this CSC yet.
         """
+        self.log.debug("process_approved_and_unprocessed_auth_requests")
         await self.authenticate()
         async with self.lock, self.client_session.get(
             self.authlistrequest_url + AUTHORIZED_PENDING_PARAMS,
@@ -256,14 +262,17 @@ class RestAuthorizeHandler(BaseAuthorizeHandler):
         return self._client_session
 
     async def create_client_session(self) -> None:
+        self.log.debug("create_client_session")
         if not self._client_session or self._client_session.closed:
             self._client_session = aiohttp.ClientSession()
 
     async def close_client_session(self) -> None:
+        self.log.debug("close_client_session")
         if self._client_session and not self._client_session.closed:
             await self._client_session.close()
 
     async def start(self, sleep_time: float) -> None:
+        self.log.debug("start")
         await self.create_client_session()
         # Make sure the task is not already running.
         self.periodic_task.cancel()
@@ -271,6 +280,7 @@ class RestAuthorizeHandler(BaseAuthorizeHandler):
         self.periodic_task = asyncio.create_task(self.perform_periodic_task(sleep_time))
 
     async def stop(self) -> None:
+        self.log.debug("stop")
         self.periodic_task.cancel()
         await self.close_client_session()
 

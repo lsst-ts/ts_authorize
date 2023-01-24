@@ -101,10 +101,12 @@ class Authorize(salobj.ConfigurableCsc):
         self.timeout_request_authorization = config.timeout_request_authorization
 
         if self.config.auto_authorization:
+            self.log.debug("Enabling auto autorization.")
             self.authorize_handler = AutoAuthorizeHandler(
                 domain=self.salinfo.domain, log=self.log
             )
         else:
+            self.log.debug("Enabling REST autorization.")
             self.authorize_handler = RestAuthorizeHandler(
                 domain=self.salinfo.domain, log=self.log, config=self.config
             )
@@ -135,10 +137,12 @@ class Authorize(salobj.ConfigurableCsc):
 
     async def handle_summary_state(self) -> None:
         if self.summary_state == salobj.State.ENABLED:
+            self.log.debug("Starting authorize handler.")
             assert self.authorize_handler is not None
             await self.authorize_handler.start(self.poll_interval)
         else:
             if self.authorize_handler is not None:
+                self.log.debug("Stopping authorize handler.")
                 await self.authorize_handler.stop()
 
 

@@ -168,7 +168,7 @@ class MockWebServer:
             and req_json["password"] == VALID_AUTHLIST_PASSWORD
             and self.token != ""
         ):
-            data = {"data": {"token": self.token}}
+            data = {"token": self.token}
             self.log.debug(f"GET token returning {data}")
             return web.json_response(data)
         else:

@@ -87,7 +87,7 @@ class RestAuthorizeHandlerTestCase(unittest.IsolatedAsyncioTestCase):
             handler.username = VALID_AUTHLIST_USERNAME
             handler.password = VALID_AUTHLIST_PASSWORD
             await handler.authenticate()
-            assert handler.response["data"]["token"] == self.token
+            assert handler.response["token"] == self.token
             assert handler.token == self.token
 
     async def validate_auth_requests(
