@@ -101,14 +101,17 @@ class Authorize(salobj.ConfigurableCsc):
         self.timeout_request_authorization = config.timeout_request_authorization
 
         if self.config.auto_authorization:
-            self.log.debug("Enabling auto autorization.")
+            self.log.info("Enabling auto authorization.")
             self.authorize_handler = AutoAuthorizeHandler(
                 domain=self.salinfo.domain, log=self.log
             )
         else:
-            self.log.debug("Enabling REST autorization.")
+            self.log.info("Enabling REST authorization.")
             self.authorize_handler = RestAuthorizeHandler(
-                domain=self.salinfo.domain, log=self.log, config=self.config
+                domain=self.salinfo.domain,
+                log=self.log,
+                config=self.config,
+                callback=self.error_callback,
             )
 
     @staticmethod
@@ -137,13 +140,25 @@ class Authorize(salobj.ConfigurableCsc):
 
     async def handle_summary_state(self) -> None:
         if self.summary_state == salobj.State.ENABLED:
-            self.log.debug("Starting authorize handler.")
+            self.log.info("Starting authorize handler.")
             assert self.authorize_handler is not None
             await self.authorize_handler.start(self.poll_interval)
         else:
             if self.authorize_handler is not None:
-                self.log.debug("Stopping authorize handler.")
+                self.log.info("Stopping authorize handler.")
                 await self.authorize_handler.stop()
+
+    async def error_callback(self, code: int, report: str) -> None:
+        """Callback coroutine for error handling of the authorize handler.
+
+        Parameters
+        ----------
+        code : `int`
+            The error code.
+        report : `str`
+            The error report.
+        """
+        await self.fault(code=code, report=report)
 
 
 def run_authorize() -> None:

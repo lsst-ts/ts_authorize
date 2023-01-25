@@ -10,6 +10,7 @@ v0.6.7
 ------
 
 * Update the code that handles the authentication response.
+* Make sure that the CSC goes to FAULT state in case of an error in the RestAuthorizeHandler.
 
 Requirements:
 
