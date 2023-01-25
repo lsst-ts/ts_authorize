@@ -108,7 +108,10 @@ class Authorize(salobj.ConfigurableCsc):
         else:
             self.log.debug("Enabling REST autorization.")
             self.authorize_handler = RestAuthorizeHandler(
-                domain=self.salinfo.domain, log=self.log, config=self.config
+                domain=self.salinfo.domain,
+                log=self.log,
+                config=self.config,
+                callback=self.error_callback,
             )
 
     @staticmethod
@@ -144,6 +147,18 @@ class Authorize(salobj.ConfigurableCsc):
             if self.authorize_handler is not None:
                 self.log.debug("Stopping authorize handler.")
                 await self.authorize_handler.stop()
+
+    async def error_callback(self, code: int, report: str) -> None:
+        """Callback coroutine for error handling of the authorize handler.
+
+        Parameters
+        ----------
+        code : `int`
+            The error code.
+        report : `str`
+            The error report.
+        """
+        await self.fault(code=code, report=report)
 
 
 def run_authorize() -> None:

@@ -30,6 +30,8 @@ from lsst.ts.authorize.testutils import (
     APPROVED_AUTH_REQUESTS,
     INDEX1,
     INDEX2,
+    INVALID_AUTHLIST_PASSWORD,
+    INVALID_AUTHLIST_USERNAME,
     NON_EXISTENT_CSC,
     PENDING_AUTH_REQUESTS,
     TEST_DATA,
@@ -158,6 +160,21 @@ class AuthorizeTestCase(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTestCase
                     nonAuthorizedCSCs="_badCscName",
                     timeout=STD_TIMEOUT,
                 )
+
+    async def test_authenticate_error(self) -> None:
+        # Prepare the username and password for authentication.
+        os.environ["AUTHLIST_USER_NAME"] = INVALID_AUTHLIST_USERNAME
+        os.environ["AUTHLIST_USER_PASS"] = INVALID_AUTHLIST_PASSWORD
+
+        # Start the MockWebServer context manager first to avoid
+        # "Cannot connect to host localhost:5000" errors.
+        async with authorize.MockWebServer(token=get_token()), self.make_csc(
+            config_dir=TEST_CONFIG_DIR,
+            initial_state=salobj.State.ENABLED,
+            override="test_rest_config.yaml",
+        ):
+            await self.assert_next_summary_state(salobj.State.ENABLED)
+            await self.assert_next_summary_state(salobj.State.FAULT)
 
     async def test_request_rest_authorization(self) -> None:
         # Prepare the username and password for authentication.

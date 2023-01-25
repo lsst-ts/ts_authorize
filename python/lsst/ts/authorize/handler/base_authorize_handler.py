@@ -24,6 +24,7 @@ __all__ = ["BaseAuthorizeHandler"]
 import asyncio
 import logging
 import types
+import typing
 from abc import ABC, abstractmethod
 
 from lsst.ts import salobj, utils
@@ -45,6 +46,7 @@ class BaseAuthorizeHandler(ABC):
         domain: salobj.Domain,
         log: logging.Logger | None = None,
         config: types.SimpleNamespace | None = None,
+        callback: typing.Callable | None = None,
     ) -> None:
         if log is not None:
             self.log = log.getChild(type(self).__name__)
@@ -52,6 +54,7 @@ class BaseAuthorizeHandler(ABC):
             self.log = logging.getLogger(type(self).__name__)
         self.domain = domain
         self.config = config
+        self.callback = callback
         # Task for polling the REST server when not running in auto
         # authorization mode.
         self.periodic_task: asyncio.Future = utils.make_done_future()

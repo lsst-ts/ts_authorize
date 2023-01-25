@@ -100,7 +100,7 @@ class MockWebServer:
         """
         if (
             request.headers.get("Authorization") is None
-            or request.headers.get("Authorization") != self.token
+            or request.headers.get("Authorization") != f"Token {self.token}"
         ):
             raise web_exceptions.HTTPUnauthorized(
                 body=json.dumps(
