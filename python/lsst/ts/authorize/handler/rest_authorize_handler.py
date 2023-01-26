@@ -126,7 +126,7 @@ class RestAuthorizeHandler(BaseAuthorizeHandler):
     async def _get_response(
         self, resp: aiohttp.ClientResponse
     ) -> RestMessageType | Iterable[RestMessageType]:
-        if resp.status == HTTPStatus.OK:
+        if resp.status in [HTTPStatus.OK, HTTPStatus.CREATED]:
             return await resp.json()
         else:
             resp_json = await resp.json()
