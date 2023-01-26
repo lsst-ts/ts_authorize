@@ -48,7 +48,7 @@ class MockWebServer:
         app.add_routes(
             [
                 web.get(AUTHLISTREQUEST_ENDPOINT, self.request_handler),
-                web.post(AUTHLISTREQUEST_ENDPOINT, self.request_handler),
+                web.post(AUTHLISTREQUEST_ENDPOINT, self.post_request_handler),
                 web.post(GET_TOKEN_ENDPOINT, self.get_token_handler),
                 web.put(
                     AUTHLISTREQUEST_ENDPOINT + ID_EXECUTE_PARAMS,
@@ -138,7 +138,7 @@ class MockWebServer:
         self.log.debug(f"PUT returning {response_dict}")
         return web.json_response(response_dict)
 
-    async def post_request_handler(self, request: web.Request) -> None:
+    async def post_request_handler(self, request: web.Request) -> web.Response:
         """POST handler coroutine for the mock REST server.
 
         Parameters
@@ -147,6 +147,9 @@ class MockWebServer:
             The web request to process.
         """
         await self.verify_http_status(request=request)
+        response = web.json_response(self.expected_rest_message)
+        response.set_status(201)
+        return response
 
     async def get_token_handler(self, request: web.Request) -> web.Response:
         """POST handler coroutine for get token requests to the mock REST
