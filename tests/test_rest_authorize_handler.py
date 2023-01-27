@@ -23,7 +23,6 @@ import os
 import types
 import unittest
 
-import pytest
 from lsst.ts import authorize, salobj
 from lsst.ts.authorize.testutils import (
     APPROVED_AUTH_REQUESTS,
@@ -55,12 +54,27 @@ class RestAuthorizeHandlerTestCase(unittest.IsolatedAsyncioTestCase):
         os.environ["AUTHLIST_USER_NAME"] = VALID_AUTHLIST_USERNAME
         os.environ["AUTHLIST_USER_PASS"] = VALID_AUTHLIST_PASSWORD
         self.token = get_token()
+        self.code = -999
+        self.report = ""
+
+    async def error_callback(self, code: int, report: str) -> None:
+        """Callback coroutine for error handling of the authorize handler.
+
+        Parameters
+        ----------
+        code : `int`
+            The error code.
+        report : `str`
+            The error report.
+        """
+        self.code = code
+        self.report = report
 
     async def test_authenticate(self) -> None:
         async with authorize.MockWebServer(
             token=""
         ) as mock_web_server, authorize.RestAuthorizeHandler(
-            domain=self.domain, config=self.config
+            domain=self.domain, config=self.config, callback=self.error_callback
         ) as handler:
             # Invalid authentication.
             valid_params = dict(
@@ -79,15 +93,16 @@ class RestAuthorizeHandlerTestCase(unittest.IsolatedAsyncioTestCase):
                 mock_web_server.token = one_invalid_params["token"]
                 handler.username = one_invalid_params["username"]
                 handler.password = one_invalid_params["password"]
-                with pytest.raises(RuntimeError):
-                    await handler.authenticate()
+                await handler.authenticate()
+                assert self.code == authorize.handler.AUTHENTICATION_ERROR_CODE
+                assert handler.token == ""
 
             # Valid authentication.
             mock_web_server.token = self.token
             handler.username = VALID_AUTHLIST_USERNAME
             handler.password = VALID_AUTHLIST_PASSWORD
             await handler.authenticate()
-            assert handler.response["data"]["token"] == self.token
+            assert handler.response["token"] == self.token
             assert handler.token == self.token
 
     async def validate_auth_requests(
@@ -112,7 +127,7 @@ class RestAuthorizeHandlerTestCase(unittest.IsolatedAsyncioTestCase):
         ) as csc2, authorize.MockWebServer(
             token=self.token
         ) as mock_web_server, authorize.RestAuthorizeHandler(
-            domain=self.domain, config=self.config
+            domain=self.domain, config=self.config, callback=self.error_callback
         ) as handler:
             assert csc1.salinfo.authorized_users == set()
             assert csc1.salinfo.non_authorized_cscs == set()
@@ -154,7 +169,7 @@ class RestAuthorizeHandlerTestCase(unittest.IsolatedAsyncioTestCase):
         async with authorize.MockWebServer(
             token=self.token
         ) as mock_web_server, authorize.RestAuthorizeHandler(
-            domain=self.domain, config=self.config
+            domain=self.domain, config=self.config, callback=self.error_callback
         ) as handler:
             for pending_auth_request in PENDING_AUTH_REQUESTS:
                 mock_web_server.expected_rest_message = (

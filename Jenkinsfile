@@ -8,7 +8,7 @@ pipeline {
         // It is recommended by SQUARE team do not add the label.
         docker {
             image 'lsstts/develop-env:develop'
-            args "-u root --entrypoint=''"
+            args "--entrypoint=''"
         }
     }
 
@@ -96,15 +96,6 @@ pipeline {
 
     post {
         always {
-            // Change the ownership of workspace to Jenkins for the clean up
-            // This is to work around the condition that the user ID of jenkins
-            // is 1003 on TSSW Jenkins instance. In this post stage, it is the
-            // jenkins to do the following clean up instead of the root in the
-            // docker container.
-            withEnv(["WHOME=${env.WORKSPACE}"]) {
-                sh 'chown -R 1003:1003 ${WHOME}/'
-            }
-
             // The path of xml needed by JUnit is relative to
             // the workspace.
             junit "${env.XML_REPORT}"

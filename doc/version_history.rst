@@ -6,6 +6,18 @@
 Version History
 ###############
 
+v0.6.7
+------
+
+* Update the code that handles the authentication response.
+* Make sure that the CSC goes to FAULT state in case of an error in the RestAuthorizeHandler.
+* Handle the POST response code 201 correctly.
+
+Requirements:
+
+* ts_salobj 7
+* IDL files for Authorize plus, all subsystems to authorize, built with ts_xml 11
+
 v0.6.6
 ------
 
