@@ -25,6 +25,7 @@ import asyncio
 import logging
 import os
 import types
+import typing
 from collections.abc import Iterable
 from http import HTTPStatus
 from types import TracebackType
@@ -39,11 +40,14 @@ from .base_authorize_handler import BaseAuthorizeHandler
 __all__ = [
     "RestAuthorizeHandler",
     "RestMessageType",
+    "AUTHENTICATION_ERROR_CODE",
     "AUTHLISTREQUEST_ENDPOINT",
     "GET_TOKEN_ENDPOINT",
     "ID_EXECUTE_PARAMS",
 ]
 
+AUTHENTICATION_ERROR_CODE = 1
+GENERAL_ERROR_CODE = 2
 AUTHLISTREQUEST_ENDPOINT = "/manager/api/authlistrequest/"
 AUTHORIZED_PENDING_PARAMS = (
     f"?status=Authorized&execution_status={ExecutionStatus.PENDING}"
@@ -90,10 +94,11 @@ class RestAuthorizeHandler(BaseAuthorizeHandler):
     def __init__(
         self,
         domain: salobj.Domain,
+        callback: typing.Callable[[int, str], typing.Awaitable[None]],
         log: logging.Logger | None = None,
         config: types.SimpleNamespace | None = None,
     ) -> None:
-        super().__init__(domain=domain, log=log, config=config)
+        super().__init__(domain=domain, log=log, config=config, callback=callback)
         assert self.config is not None
         self.response: None | RestMessageType | Iterable[RestMessageType] = None
         self.authlistrequest_url = (
@@ -113,17 +118,24 @@ class RestAuthorizeHandler(BaseAuthorizeHandler):
                 "Please set AUTHLIST_USER_NAME and AUTHLIST_USER_PASS environment variables."
             )
 
+    async def _handle_error(self, code: int, report: str) -> RestMessageType:
+        assert self.callback is not None
+        await self.callback(code=code, report=report)
+        return {"error": report}
+
     async def _get_response(
         self, resp: aiohttp.ClientResponse
     ) -> RestMessageType | Iterable[RestMessageType]:
-        if resp.status == HTTPStatus.OK:
+        if resp.status in [HTTPStatus.OK, HTTPStatus.CREATED]:
             return await resp.json()
         else:
             resp_json = await resp.json()
-            raise RuntimeError(
+            code = GENERAL_ERROR_CODE
+            report = (
                 f"Got HTTP response status {resp.status} == {HTTPStatus(resp.status).name} "
                 f"and {resp_json=!s}."
             )
+            return await self._handle_error(code=code, report=report)
 
     async def authenticate(self) -> None:
         """Authenticate against the REST server.
@@ -133,18 +145,23 @@ class RestAuthorizeHandler(BaseAuthorizeHandler):
         `RuntimeError`
             In case of an unexpected response.
         """
+        assert self.config is not None
+        self.log.debug(f"Authenticating against host {self.config.host}.")
         json = {"username": self.username, "password": self.password}
         async with self.lock, self.client_session.post(
             url=self.get_token_url, json=json
         ) as resp:
             self.response = await self._get_response(resp=resp)
             assert isinstance(self.response, dict)  # keep MyPy happy.
-            if "data" in self.response.keys():
-                assert isinstance(self.response["data"], dict)  # keep MyPy happy.
-                self.token = self.response["data"]["token"]
+            if "token" in self.response.keys():
+                assert isinstance(self.response["token"], str)  # keep MyPy happy.
+                self.token = self.response["token"]
+                self.log.debug("Authentication successful.")
             else:
                 self.token = ""
-                raise RuntimeError(f"Got unexpected response {self.response}.")
+                self.log.error("Authentication unsuccessful.")
+                report = f"Got unexpected response {self.response}."
+                await self._handle_error(code=AUTHENTICATION_ERROR_CODE, report=report)
 
     async def handle_authorize_request(self, data: AuthRequestData) -> None:
         """Send a POST with the authorize request data.
@@ -157,6 +174,7 @@ class RestAuthorizeHandler(BaseAuthorizeHandler):
         data : `AuthRequestData`
             The auth request data.
         """
+        self.log.debug("handle_authorize_request")
         await self.authenticate()
         json = {
             "cscs_to_change": data.cscs_to_change,
@@ -167,7 +185,7 @@ class RestAuthorizeHandler(BaseAuthorizeHandler):
         async with self.lock, self.client_session.post(
             url=self.authlistrequest_url,
             json=json,
-            headers={"Authorization": self.token},
+            headers={"Authorization": f"Token {self.token}"},
         ) as resp:
             self.response = await self._get_response(resp=resp)
 
@@ -178,10 +196,11 @@ class RestAuthorizeHandler(BaseAuthorizeHandler):
         These are authorize requests that have been approved by an
         operator and that have not been processed by this CSC yet.
         """
+        self.log.debug("process_approved_and_unprocessed_auth_requests")
         await self.authenticate()
         async with self.lock, self.client_session.get(
             self.authlistrequest_url + AUTHORIZED_PENDING_PARAMS,
-            headers={"Authorization": self.token},
+            headers={"Authorization": f"Token {self.token}"},
         ) as resp:
             self.response = await self._get_response(resp=resp)
             if self.response is not None:
@@ -220,7 +239,7 @@ class RestAuthorizeHandler(BaseAuthorizeHandler):
                             "execution_status": execution_status,
                             "execution_message": execution_message,
                         },
-                        headers={"Authorization": self.token},
+                        headers={"Authorization": f"Token {self.token}"},
                     ) as put_resp:
                         put_resp_json = await self._get_response(resp=put_resp)
                         assert isinstance(put_resp_json, dict)  # keep MyPy happy.
@@ -256,14 +275,17 @@ class RestAuthorizeHandler(BaseAuthorizeHandler):
         return self._client_session
 
     async def create_client_session(self) -> None:
+        self.log.debug("create_client_session")
         if not self._client_session or self._client_session.closed:
             self._client_session = aiohttp.ClientSession()
 
     async def close_client_session(self) -> None:
+        self.log.debug("close_client_session")
         if self._client_session and not self._client_session.closed:
             await self._client_session.close()
 
     async def start(self, sleep_time: float) -> None:
+        self.log.debug("start")
         await self.create_client_session()
         # Make sure the task is not already running.
         self.periodic_task.cancel()
@@ -271,6 +293,7 @@ class RestAuthorizeHandler(BaseAuthorizeHandler):
         self.periodic_task = asyncio.create_task(self.perform_periodic_task(sleep_time))
 
     async def stop(self) -> None:
+        self.log.debug("stop")
         self.periodic_task.cancel()
         await self.close_client_session()
 
