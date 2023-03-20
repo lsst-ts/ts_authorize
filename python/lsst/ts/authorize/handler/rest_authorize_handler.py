@@ -243,10 +243,14 @@ class RestAuthorizeHandler(BaseAuthorizeHandler):
                         headers={"Authorization": f"Token {self.token}"},
                     ) as put_resp:
                         put_resp_json = await self._get_response(resp=put_resp)
+                        self.log.debug(f"put_resp_json == {type(put_resp_json)}")
                         assert isinstance(put_resp_json, dict)  # keep MyPy happy.
                         put_resp_id = put_resp_json["id"]
+                        self.log.debug(f"{put_resp_id}")
                         put_resp_exec_stat = put_resp_json["execution_status"]
+                        self.log.debug(f"{put_resp_exec_stat}")
                         put_resp_exec_msg = put_resp_json["execution_message"]
+                        self.log.debug(f"{put_resp_exec_msg}")
                         if put_resp_id != response_id:
                             self.log.error(
                                 f"Response id = {put_resp_id} != request id = {response_id}"
