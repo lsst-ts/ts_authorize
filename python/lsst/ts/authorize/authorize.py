@@ -158,6 +158,7 @@ class Authorize(salobj.ConfigurableCsc):
         report : `str`
             The error report.
         """
+        self.log.debug(f"Going to FAULT state with {code} and {report}.")
         await self.fault(code=code, report=report)
 
 

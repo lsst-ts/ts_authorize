@@ -126,6 +126,7 @@ class RestAuthorizeHandler(BaseAuthorizeHandler):
     async def _get_response(
         self, resp: aiohttp.ClientResponse
     ) -> RestMessageType | Iterable[RestMessageType]:
+        self.log.debug(f"Got response with {resp.status} and {resp.json()}.")
         if resp.status in [HTTPStatus.OK, HTTPStatus.CREATED]:
             return await resp.json()
         else:
@@ -266,7 +267,9 @@ class RestAuthorizeHandler(BaseAuthorizeHandler):
 
     async def perform_periodic_task(self, sleep_time: float) -> None:
         while True:
+            self.log.debug("Calling process_approved_and_unprocessed_auth_requests.")
             await self.process_approved_and_unprocessed_auth_requests()
+            self.log.debug(f"Sleeping {sleep_time} seconds.")
             await asyncio.sleep(sleep_time)
 
     @property
