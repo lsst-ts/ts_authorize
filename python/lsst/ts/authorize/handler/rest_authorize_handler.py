@@ -126,11 +126,11 @@ class RestAuthorizeHandler(BaseAuthorizeHandler):
     async def _get_response(
         self, resp: aiohttp.ClientResponse
     ) -> RestMessageType | Iterable[RestMessageType]:
-        self.log.debug(f"Got response with {resp.status} and {resp.json()}.")
+        resp_json = await resp.json()
+        self.log.debug(f"Got response with {resp.status} and {resp_json}.")
         if resp.status in [HTTPStatus.OK, HTTPStatus.CREATED]:
-            return await resp.json()
+            return resp_json
         else:
-            resp_json = await resp.json()
             code = GENERAL_ERROR_CODE
             report = (
                 f"Got HTTP response status {resp.status} == {HTTPStatus(resp.status).name} "
