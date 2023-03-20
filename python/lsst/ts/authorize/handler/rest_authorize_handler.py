@@ -246,28 +246,18 @@ class RestAuthorizeHandler(BaseAuthorizeHandler):
                         self.log.debug(f"put_resp_json == {type(put_resp_json)}")
                         assert isinstance(put_resp_json, dict)  # keep MyPy happy.
                         put_resp_id = put_resp_json["id"]
-                        self.log.debug(f"{put_resp_id}")
+                        self.log.debug(f"{put_resp_id=!s}")
                         put_resp_exec_stat = put_resp_json["execution_status"]
-                        self.log.debug(f"{put_resp_exec_stat}")
+                        self.log.debug(f"{put_resp_exec_stat=!s}")
                         put_resp_exec_msg = put_resp_json["execution_message"]
-                        self.log.debug(f"{put_resp_exec_msg}")
-                        if put_resp_id != response_id:
-                            self.log.error(
-                                f"Response id = {put_resp_id} != request id = {response_id}"
-                            )
-                        else:
-                            if put_resp_exec_stat != execution_status:
-                                self.log.error(
-                                    f"Response id = {put_resp_id} == request id = {response_id} "
-                                    f"but response execution status = {put_resp_exec_stat} != "
-                                    f"request execution status {execution_status}"
-                                )
-                            if put_resp_exec_msg != execution_message:
-                                self.log.error(
-                                    f"Response id = {put_resp_id} == request id = {response_id} "
-                                    f"but response execution message = {put_resp_exec_msg} != "
-                                    f"request execution message {execution_message}"
-                                )
+                        self.log.debug(f"{put_resp_exec_msg=!s}")
+                        self.log.debug(f"{put_resp_id=!s} and {response_id=!s}")
+                        self.log.debug(
+                            f"{put_resp_exec_stat=!s} and {execution_status=!s}"
+                        )
+                        self.log.debug(
+                            f"{put_resp_exec_msg=!s} and {execution_message=!s}"
+                        )
 
     async def perform_periodic_task(self, sleep_time: float) -> None:
         while True:
