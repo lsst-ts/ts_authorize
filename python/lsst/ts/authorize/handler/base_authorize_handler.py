@@ -88,7 +88,11 @@ class BaseAuthorizeHandler(ABC):
         All CSCs that can be contacted get changed, even if one or more CSCs
         cannot be contacted.
         """
-        cscs_to_command = await self.validate_request(data=data)
+        try:
+            cscs_to_command = await self.validate_request(data=data)
+        except Exception:
+            self.log.exception("Exception validating auth request.")
+            raise
 
         # Reset these variables so they don't have a value left from previous
         # calls to this function.
@@ -98,6 +102,9 @@ class BaseAuthorizeHandler(ABC):
         for csc_name_index in cscs_to_command:
             csc_name, csc_index = salobj.name_to_name_index(csc_name_index)
             try:
+                self.log.info(
+                    f"Setting authList for {csc_name_index} to {data.authorized_users}"
+                )
                 async with salobj.Remote(
                     domain=self.domain,
                     name=csc_name,
@@ -109,13 +116,12 @@ class BaseAuthorizeHandler(ABC):
                         nonAuthorizedCSCs=data.non_authorized_cscs,
                         timeout=TIMEOUT_SET_AUTH_LIST,
                     )
-                    self.log.info(
-                        f"Set authList for {csc_name_index} to {data.authorized_users}"
-                    )
-            except salobj.AckError as e:
+            # Catch a general Exception instead of salobj.AckError to make sure
+            # that no exceptions get missed.
+            except Exception as e:
                 csc_failed_messages[csc_name_index] = e.args[0]
                 self.log.warning(
-                    f"Failed to set authList for {csc_name_index}: {e.args[0]}"
+                    f"Failed to set authList for {csc_name_index}: {repr(e)}"
                 )
 
         cscs_succeeded = cscs_to_command - csc_failed_messages.keys()

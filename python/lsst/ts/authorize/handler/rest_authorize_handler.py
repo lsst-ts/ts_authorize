@@ -126,14 +126,14 @@ class RestAuthorizeHandler(BaseAuthorizeHandler):
     async def _get_response(
         self, resp: aiohttp.ClientResponse
     ) -> RestMessageType | Iterable[RestMessageType]:
+        resp_json = await resp.json()
         if resp.status in [HTTPStatus.OK, HTTPStatus.CREATED]:
-            return await resp.json()
+            return resp_json
         else:
-            resp_json = await resp.json()
             code = GENERAL_ERROR_CODE
             report = (
                 f"Got HTTP response status {resp.status} == {HTTPStatus(resp.status).name} "
-                f"and {resp_json=!s}."
+                f"and {resp_json=}."
             )
             return await self._handle_error(code=code, report=report)
 
@@ -174,7 +174,6 @@ class RestAuthorizeHandler(BaseAuthorizeHandler):
         data : `AuthRequestData`
             The auth request data.
         """
-        self.log.debug("handle_authorize_request")
         await self.authenticate()
         json = {
             "cscs_to_change": data.cscs_to_change,
@@ -182,12 +181,14 @@ class RestAuthorizeHandler(BaseAuthorizeHandler):
             "unauthorized_cscs": data.non_authorized_cscs,
             "requested_by": data.private_identity,
         }
+        self.log.debug(f"handle_authorize_request with {json=}")
         async with self.lock, self.client_session.post(
             url=self.authlistrequest_url,
             json=json,
             headers={"Authorization": f"Token {self.token}"},
         ) as resp:
             self.response = await self._get_response(resp=resp)
+            self.log.debug(f"Got {self.response=}.")
 
     async def process_approved_and_unprocessed_auth_requests(self) -> None:
         """GET the approved and unprocessed authorize requests from the REST
@@ -203,21 +204,23 @@ class RestAuthorizeHandler(BaseAuthorizeHandler):
             headers={"Authorization": f"Token {self.token}"},
         ) as resp:
             self.response = await self._get_response(resp=resp)
+            self.log.debug(f"Got {self.response=}.")
             if self.response is not None:
-                for response in self.response:
-                    assert isinstance(response, dict)  # keep MyPy happy.
+                for response_item in self.response:
+                    self.log.debug(f"Processing {response_item=!r}")
+                    assert isinstance(response_item, dict)  # keep MyPy happy.
                     data = AuthRequestData(
-                        authorized_users=str(response["authorized_users"]),
-                        cscs_to_change=str(response["cscs_to_change"]),
-                        non_authorized_cscs=str(response["unauthorized_cscs"]),
-                        private_identity=str(response["requested_by"]),
+                        authorized_users=str(response_item["authorized_users"]),
+                        cscs_to_change=str(response_item["cscs_to_change"]),
+                        non_authorized_cscs=str(response_item["unauthorized_cscs"]),
+                        private_identity=str(response_item["requested_by"]),
                     )
                     (
                         csc_failed_messages,
                         cscs_succeeded,
                     ) = await self.process_authorize_request(data=data)
 
-                    response_id = response["id"]
+                    response_id = response_item["id"]
                     execution_status = ExecutionStatus.SUCCESSFUL
                     execution_message = (
                         "The following CSCs were updated correctly: "
@@ -242,6 +245,7 @@ class RestAuthorizeHandler(BaseAuthorizeHandler):
                         headers={"Authorization": f"Token {self.token}"},
                     ) as put_resp:
                         put_resp_json = await self._get_response(resp=put_resp)
+                        self.log.debug(f"Got {put_resp_json=}.")
                         assert isinstance(put_resp_json, dict)  # keep MyPy happy.
                         put_resp_id = put_resp_json["id"]
                         put_resp_exec_stat = put_resp_json["execution_status"]
@@ -267,6 +271,7 @@ class RestAuthorizeHandler(BaseAuthorizeHandler):
     async def perform_periodic_task(self, sleep_time: float) -> None:
         while True:
             await self.process_approved_and_unprocessed_auth_requests()
+            self.log.debug(f"Sleeping {sleep_time} seconds.")
             await asyncio.sleep(sleep_time)
 
     @property
