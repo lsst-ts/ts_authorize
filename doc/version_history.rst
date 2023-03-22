@@ -10,6 +10,8 @@ v0.6.8
 ------
 
 * Add debug statements and better error handling.
+* Update Jenkinsfile to use DevelopPipeline.
+* Switch to using ts-pre-commit-config.
 
 Requirements:
 
