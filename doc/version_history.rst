@@ -6,6 +6,18 @@
 Version History
 ###############
 
+v0.6.8
+------
+
+* Add debug statements and better error handling.
+* Update Jenkinsfile to use DevelopPipeline.
+* Switch to using ts-pre-commit-config.
+
+Requirements:
+
+* ts_salobj 7
+* IDL files for Authorize plus, all subsystems to authorize, built with ts_xml 11
+
 v0.6.7
 ------
 
