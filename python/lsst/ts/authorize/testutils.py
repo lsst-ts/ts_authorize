@@ -291,3 +291,48 @@ APPROVED_PROCESSED_AUTH_REQUESTS = [
         execution_message="The following CSCs were updated correctly: Test:5, Test:52.",
     ),
 ]
+
+# A list representing a single pending, unprocessed authorize request for
+# incorrect CSCs or authorized users.
+FAULTY_PENDING_AUTH_REQUESTS = [
+    {
+        "id": 1,
+        "resolved_by": "cmd_user",
+        "user": "cmd_user",
+        "cscs_to_change": "MTQueue",
+        "authorized_users": "+test@localhost",
+        "unauthorized_cscs": "",
+        "requested_by": "test@localhost",
+        "requested_at": "2022-09-01T11:10:00.000Z",
+        "duration": None,
+        "message": "testing",
+        "status": "Authorized",
+        "execution_status": "Pending",
+        "execution_message": None,
+        "resolved_at": "2022-09-01T11:15:00.000Z",
+    },
+    {
+        "id": 2,
+        "resolved_by": "cmd_user",
+        "user": "cmd_user",
+        "cscs_to_change": "Test:5",
+        "authorized_users": "test",
+        "unauthorized_cscs": "",
+        "requested_by": "test@localhost",
+        "requested_at": "2022-09-01T11:10:00.000Z",
+        "duration": None,
+        "message": "testing",
+        "status": "Authorized",
+        "execution_status": "Pending",
+        "execution_message": None,
+        "resolved_at": "2022-09-01T11:15:00.000Z",
+    },
+]
+
+# The expected execution messages for the faulty pending auth requests.
+EXP_EXEC_MSGS_FOR_FAULTY_REQS = [
+    "The following CSCs were updated correctly: None. "
+    "The following CSCs failed to update correctly: MTQueue.",
+    "The following CSCs were updated correctly: None. "
+    "The following CSCs failed to update correctly: Test:5.",
+]

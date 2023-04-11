@@ -134,8 +134,11 @@ class RestAuthorizeHandlerTestCase(unittest.IsolatedAsyncioTestCase):
             assert csc2.salinfo.authorized_users == set()
             assert csc2.salinfo.non_authorized_cscs == set()
 
-            for aar in APPROVED_AUTH_REQUESTS:
+            for index, aar in enumerate(APPROVED_AUTH_REQUESTS):
                 mock_web_server.expected_rest_message = aar.rest_messages
+                mock_web_server.put_response_dict = APPROVED_PROCESSED_AUTH_REQUESTS[
+                    index
+                ]
                 await handler.process_approved_and_unprocessed_auth_requests()
                 await self.validate_auth_requests(
                     response_list=handler.response,
