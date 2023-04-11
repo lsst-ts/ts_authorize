@@ -1,2 +1,2 @@
 @Library('JenkinsShared')_
-DevelopPipeline(name: "ts_authorize", idl_name: "Authorize", module_name: "lsst.ts.authorize")
+DevelopPipeline(name: "ts_authorize", idl_names: ["Authorize"], module_name: "lsst.ts.authorize")
