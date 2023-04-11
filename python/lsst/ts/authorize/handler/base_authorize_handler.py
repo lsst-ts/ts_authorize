@@ -71,6 +71,24 @@ class BaseAuthorizeHandler(ABC):
         """
         raise NotImplementedError
 
+    def create_csc_failed_message(
+        self, csc_failed_messages: dict[str, str], csc_string: str, e: Exception
+    ) -> None:
+        """Utility function to create a message indicating that a failure has
+        occurred for one or more CSCs.
+
+        Parameters
+        ----------
+        csc_failed_messages : `dict` of `str`
+            The existing messages to which the new message is added.
+        csc_string : `str`
+            The name(s) of the CSC(s) for which the failure happened.
+        e : `Exception`
+            The exception which is used to create the message.
+        """
+        csc_failed_messages[csc_string] = e.args[0]
+        self.log.warning(f"Failed to set authList for {csc_string}: {e.args[0]}")
+
     async def process_authorize_request(
         self, data: AuthRequestData
     ) -> tuple[dict[str, str], set[str]]:
@@ -88,16 +106,15 @@ class BaseAuthorizeHandler(ABC):
         All CSCs that can be contacted get changed, even if one or more CSCs
         cannot be contacted.
         """
-        try:
-            cscs_to_command = await self.validate_request(data=data)
-        except Exception:
-            self.log.exception("Exception validating auth request.")
-            raise
-
-        # Reset these variables so they don't have a value left from previous
-        # calls to this function.
         csc_failed_messages: dict[str, str] = {}
         cscs_succeeded: set[str] = set()
+        cscs_to_command: set[str] = set()
+
+        try:
+            cscs_to_command = await self.validate_request(data=data)
+        except Exception as e:
+            self.log.exception("Exception validating auth request.")
+            self.create_csc_failed_message(csc_failed_messages, data.cscs_to_change, e)
 
         for csc_name_index in cscs_to_command:
             csc_name, csc_index = salobj.name_to_name_index(csc_name_index)
@@ -119,12 +136,11 @@ class BaseAuthorizeHandler(ABC):
             # Catch a general Exception instead of salobj.AckError to make sure
             # that no exceptions get missed.
             except Exception as e:
-                csc_failed_messages[csc_name_index] = e.args[0]
-                self.log.warning(
-                    f"Failed to set authList for {csc_name_index}: {repr(e)}"
-                )
+                self.create_csc_failed_message(csc_failed_messages, csc_name_index, e)
 
         cscs_succeeded = cscs_to_command - csc_failed_messages.keys()
+        if len(cscs_succeeded) == 0:
+            cscs_succeeded.add("None")
         return csc_failed_messages, cscs_succeeded
 
     async def validate_request(self, data: AuthRequestData) -> set[str]:

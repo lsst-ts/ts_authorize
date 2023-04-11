@@ -28,6 +28,8 @@ import unittest
 from lsst.ts import authorize, salobj
 from lsst.ts.authorize.testutils import (
     APPROVED_AUTH_REQUESTS,
+    EXP_EXEC_MSGS_FOR_FAULTY_REQS,
+    FAULTY_PENDING_AUTH_REQUESTS,
     INDEX1,
     INDEX2,
     INVALID_AUTHLIST_PASSWORD,
@@ -269,3 +271,37 @@ class AuthorizeTestCase(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTestCase
                 self.csc.authorize_handler.response
                 == mock_web_server.expected_rest_message
             )
+
+    async def test_faulty_messages(self) -> None:
+        # Prepare the username and password for authentication.
+        os.environ["AUTHLIST_USER_NAME"] = VALID_AUTHLIST_USERNAME
+        os.environ["AUTHLIST_USER_PASS"] = VALID_AUTHLIST_PASSWORD
+
+        async with authorize.MockWebServer(
+            token=get_token()
+        ) as mock_web_server, self.make_csc(
+            config_dir=TEST_CONFIG_DIR,
+            initial_state=salobj.State.ENABLED,
+            override="test_rest_config.yaml",
+        ), authorize.MinimalTestCsc(
+            index=INDEX1
+        ):
+            execution_message_while_waiting = ""
+            for index, message in enumerate(FAULTY_PENDING_AUTH_REQUESTS):
+                mock_web_server.expected_rest_message = [message]
+                mock_web_server.put_response_dict = message
+                while (
+                    mock_web_server.expected_execution_message
+                    == execution_message_while_waiting
+                ):
+                    await asyncio.sleep(0.1)
+
+                assert (
+                    mock_web_server.expected_execution_status
+                    == authorize.ExecutionStatus.FAILED
+                )
+                assert (
+                    mock_web_server.expected_execution_message
+                    == EXP_EXEC_MSGS_FOR_FAULTY_REQS[index]
+                )
+                execution_message_while_waiting = EXP_EXEC_MSGS_FOR_FAULTY_REQS[index]

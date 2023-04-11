@@ -32,11 +32,7 @@ from aiohttp.test_utils import TestServer
 
 from .handler import AUTHLISTREQUEST_ENDPOINT, GET_TOKEN_ENDPOINT, ID_EXECUTE_PARAMS
 from .handler_utils import ExecutionStatus, RestMessageType
-from .testutils import (
-    APPROVED_PROCESSED_AUTH_REQUESTS,
-    VALID_AUTHLIST_PASSWORD,
-    VALID_AUTHLIST_USERNAME,
-)
+from .testutils import VALID_AUTHLIST_PASSWORD, VALID_AUTHLIST_USERNAME
 
 
 class MockWebServer:
@@ -63,6 +59,8 @@ class MockWebServer:
         self.expected_execution_status = ExecutionStatus.PENDING
         # The expected execution message.
         self.expected_execution_message = ""
+        # The response dict for a PUT request.
+        self.put_response_dict = ""
         # The token for authentication.
         self.token = token
 
@@ -130,13 +128,11 @@ class MockWebServer:
             The web request to process.
         """
         await self.verify_http_status(request=request)
-        request_id = int(request.match_info["request_id"])
-        response_dict = APPROVED_PROCESSED_AUTH_REQUESTS[request_id]
         req_json = await request.json()
         self.expected_execution_status = ExecutionStatus(req_json["execution_status"])
         self.expected_execution_message = req_json["execution_message"]
-        self.log.debug(f"PUT returning {response_dict}")
-        return web.json_response(response_dict)
+        self.log.debug(f"PUT returning {self.put_response_dict}")
+        return web.json_response(self.put_response_dict)
 
     async def post_request_handler(self, request: web.Request) -> web.Response:
         """POST handler coroutine for the mock REST server.
