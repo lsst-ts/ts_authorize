@@ -27,7 +27,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any
 
-from lsst.ts import salobj
+from lsst.ts import salobj, xml
 
 __all__ = [
     "AuthRequestData",
@@ -80,7 +80,8 @@ def check_cscs(cscs: collections.abc.Iterable) -> None:
         If at least one value in ``cscs`` is not valid.
     """
     for csc in cscs:
-        if not CSC_NAME_INDEX_RE.match(csc):
+        csc_name, csc_index = salobj.name_to_name_index(csc)
+        if not CSC_NAME_INDEX_RE.match(csc) or csc_name not in xml.subsystems:
             raise ValueError(f"Invalid CSC[:index]: {csc!r}")
 
 
