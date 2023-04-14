@@ -60,7 +60,7 @@ class MockWebServer:
         # The expected execution message.
         self.expected_execution_message = ""
         # The response dict for a PUT request.
-        self.put_response_dict = ""
+        self.put_response_dict = None
         # The token for authentication.
         self.token = token
 

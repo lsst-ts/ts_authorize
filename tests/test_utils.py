@@ -27,7 +27,7 @@ from lsst.ts import authorize
 class UtilsTestCase(unittest.TestCase):
     def test_check_cscs(self) -> None:
         good_values = {
-            "EAS",
+            "MTDome",
             "ScriptQueue:0",
             "ESS:1",
             "DIMM:56789",
@@ -36,13 +36,13 @@ class UtilsTestCase(unittest.TestCase):
 
         for bad_prefix in ("_", ".", "-", "?", "*"):
             with self.assertRaises(ValueError):
-                authorize.check_cscs({f"{bad_prefix}EAS"})
+                authorize.check_cscs({f"{bad_prefix}MTDome"})
             with self.assertRaises(ValueError):
                 authorize.check_cscs({f"{bad_prefix}ESS:1"})
 
         for bad_char in (".", "-", "?", "*", "@"):
             with self.assertRaises(ValueError):
-                authorize.check_cscs({f"EAS{bad_char}"})
+                authorize.check_cscs({f"MTDome{bad_char}"})
             with self.assertRaises(ValueError):
                 authorize.check_cscs({f"ESS{bad_char}:1"})
 

@@ -266,34 +266,36 @@ APPROVED_PROCESSED_AUTH_REQUESTS = [
         message_id=0,
         status=RequestStatus.APPROVED.value,
         execution_status=ExecutionStatus.SUCCESSFUL.value,
-        execution_message="The following CSCs were updated correctly: Test:5.",
+        execution_message="The following CSCs were successfully updated: Test:5.",
     ),
     RestMessage.from_auth_request_data(
         artd=TEST_DATA[1],
         message_id=1,
         status=RequestStatus.APPROVED.value,
         execution_status=ExecutionStatus.FAILED.value,
-        execution_message="The following CSCs were updated correctly: Test:5, Test:52. "
-        + "The following CSCs failed to update correctly: Test:999.",
+        execution_message="The following CSCs were successfully updated: Test:5, Test:52. "
+        + "Failed to set authList for one or more CSCs: Test:999.",
     ),
     RestMessage.from_auth_request_data(
         artd=TEST_DATA[2],
         message_id=2,
         status=RequestStatus.APPROVED.value,
         execution_status=ExecutionStatus.SUCCESSFUL.value,
-        execution_message="The following CSCs were updated correctly: Test:5, Test:52.",
+        execution_message="The following CSCs were successfully updated: Test:5, Test:52.",
     ),
     RestMessage.from_auth_request_data(
         artd=TEST_DATA[3],
         message_id=3,
         status=RequestStatus.APPROVED.value,
         execution_status=ExecutionStatus.SUCCESSFUL.value,
-        execution_message="The following CSCs were updated correctly: Test:5, Test:52.",
+        execution_message="The following CSCs were successfully updated: Test:5, Test:52.",
     ),
 ]
 
 # A list representing a single pending, unprocessed authorize request for
-# incorrect CSCs or authorized users.
+# incorrect CSCs or authorized users. For the request with ID 1, the "MTQueue"
+# CSC doesn't exist. For the request with ID 2, the "Test:5" CSC isn't started
+# by the unit test.
 FAULTY_PENDING_AUTH_REQUESTS = [
     {
         "id": 1,
@@ -329,10 +331,9 @@ FAULTY_PENDING_AUTH_REQUESTS = [
     },
 ]
 
-# The expected execution messages for the faulty pending auth requests.
+# The expected execution messages for the faulty pending auth requests. These
+# execution messages correspond one on one to the FAULTY_PENDING_AUTH_REQUESTS.
 EXP_EXEC_MSGS_FOR_FAULTY_REQS = [
-    "The following CSCs were updated correctly: None. "
-    "The following CSCs failed to update correctly: MTQueue.",
-    "The following CSCs were updated correctly: None. "
-    "The following CSCs failed to update correctly: Test:5.",
+    "Failed to set authList for one or more CSCs: MTQueue.",
+    "Failed to set authList for one or more CSCs: Test:5.",
 ]
