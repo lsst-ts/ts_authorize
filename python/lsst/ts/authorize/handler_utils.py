@@ -28,6 +28,7 @@ from enum import Enum
 from typing import Any
 
 from lsst.ts import salobj
+from lsst.ts.idl import get_idl_dir
 
 __all__ = [
     "AuthRequestData",
@@ -44,6 +45,9 @@ RestMessageType = dict[str, int | float | str | dict[str, Any]]
 
 CSC_NAME_INDEX_RE = re.compile(r"^[a-zA-Z][_A-Za-z0-9]*(:\d+)?$")
 USER_HOST_RE = re.compile(r"^[a-zA-Z][-._A-Za-z0-9]*@[a-zA-Z0-9][-._A-Za-z0-9]*$")
+
+# TODO DM-38683: Use lsst.ts.xml instead.
+IDL_FILE_PATTERN_MATCH = re.compile(r"(.*)sal_revCoded_(?P<component>.*).idl")
 
 
 @dataclass
@@ -71,6 +75,28 @@ class ExecutionStatus(str, Enum):
     SUCCESSFUL = "Successful"
 
 
+# TODO DM-38683: Use lsst.ts.xml instead.
+def _get_all_components() -> list[str]:
+    """Get the name of all components in the system.
+
+    Returns
+    -------
+    list[str]
+        Name of all components in the system.
+    """
+    idl_dir = get_idl_dir()
+
+    components: list[str] = {
+        IDL_FILE_PATTERN_MATCH.match(str(idl_file)).groupdict()["component"]  # type: ignore
+        for idl_file in idl_dir.glob("*idl")
+    }
+
+    return components
+
+
+all_components = _get_all_components()
+
+
 def check_cscs(cscs: collections.abc.Iterable) -> None:
     """Check one of more csc name[:index] values.
 
@@ -79,9 +105,14 @@ def check_cscs(cscs: collections.abc.Iterable) -> None:
     ValueError
         If at least one value in ``cscs`` is not valid.
     """
+    bad_cscs = set()
     for csc in cscs:
-        if not CSC_NAME_INDEX_RE.match(csc):
-            raise ValueError(f"Invalid CSC[:index]: {csc!r}")
+        csc_name, csc_index = salobj.name_to_name_index(csc)
+        # TODO DM-38683: Use lsst.ts.xml instead.
+        if not CSC_NAME_INDEX_RE.match(csc) or csc_name not in all_components:
+            bad_cscs.add(csc)
+    if bad_cscs:
+        raise ValueError(f'Invalid CSC[:index]s:  {", ".join(bad_cscs)}')
 
 
 def check_user_hosts(user_hosts: collections.abc.Iterable) -> None:
@@ -92,9 +123,11 @@ def check_user_hosts(user_hosts: collections.abc.Iterable) -> None:
     ValueError
         If at least one value in ``user_hosts`` is not valid.
     """
-    for user_host in user_hosts:
-        if not USER_HOST_RE.match(user_host):
-            raise ValueError(f"Invalid user@host: {user_host!r}")
+    bad_users = {
+        user_host for user_host in user_hosts if not USER_HOST_RE.match(user_host)
+    }
+    if bad_users:
+        raise ValueError(f'Invalid user@hosts: {", ".join(bad_users)}')
 
 
 def create_failed_error_message(
@@ -115,10 +148,18 @@ def create_failed_error_message(
     str
         The message string.
     """
-    return (
-        f"Failed to set authList for one or more CSCs: {csc_failed_messages}. "
-        f"The following CSCs were successfully updated: {cscs_succeeded}."
+    success_message = (
+        f'The following CSCs were successfully updated: {", ".join(sorted(cscs_succeeded))}.'
+        if len(cscs_succeeded) > 0
+        else ""
     )
+    failed_message = (
+        f'Failed to set authList for one or more CSCs: {", ".join(sorted(csc_failed_messages))}.'
+        if len(csc_failed_messages) > 0
+        else ""
+    )
+    space_or_not = " " if success_message and failed_message else ""
+    return success_message + space_or_not + failed_message
 
 
 def set_from_comma_separated_string(string_to_split: str) -> set[str]:

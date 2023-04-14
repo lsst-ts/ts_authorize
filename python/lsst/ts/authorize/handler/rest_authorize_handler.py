@@ -34,7 +34,12 @@ from typing import Type
 import aiohttp
 from lsst.ts import salobj
 
-from ..handler_utils import AuthRequestData, ExecutionStatus, RestMessageType
+from ..handler_utils import (
+    AuthRequestData,
+    ExecutionStatus,
+    RestMessageType,
+    create_failed_error_message,
+)
 from .base_authorize_handler import BaseAuthorizeHandler
 
 __all__ = [
@@ -221,20 +226,15 @@ class RestAuthorizeHandler(BaseAuthorizeHandler):
                     ) = await self.process_authorize_request(data=data)
 
                     response_id = response_item["id"]
-                    execution_status = ExecutionStatus.SUCCESSFUL
-                    execution_message = (
-                        "The following CSCs were updated correctly: "
-                        + ", ".join(sorted(cscs_succeeded))
-                        + "."
+                    execution_status = (
+                        ExecutionStatus.SUCCESSFUL
+                        if len(csc_failed_messages) == 0
+                        else ExecutionStatus.FAILED
                     )
-                    if len(csc_failed_messages) > 0:
-                        execution_status = ExecutionStatus.FAILED
-                        failed_message = (
-                            " The following CSCs failed to update correctly: "
-                            + ", ".join(sorted(csc_failed_messages.keys()))
-                            + "."
-                        )
-                        execution_message = execution_message + failed_message
+                    execution_message = create_failed_error_message(
+                        csc_failed_messages=csc_failed_messages,
+                        cscs_succeeded=cscs_succeeded,
+                    )
                     put_path = ID_EXECUTE_PARAMS.format(request_id=response_id)
                     async with self.client_session.put(
                         self.authlistrequest_url + put_path,

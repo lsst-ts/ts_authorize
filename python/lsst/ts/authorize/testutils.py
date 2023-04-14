@@ -43,9 +43,9 @@ JOINED_TEST_USERS = TEST_USERS_1 | TEST_USERS_2
 REMAINING_USERS = JOINED_TEST_USERS - USERS_TO_REMOVE
 
 # Several sets of test CSCs.
-TEST_CSCS_1 = {"Foo", "Bar:1", "XKCD:47"}
-TEST_CSCS_2 = {"AT", "seisen:22"}
-CSCS_TO_REMOVE = {"XKCD:47", "AT", NON_EXISTENT_CSC}
+TEST_CSCS_1 = {"DIMM", "ESS:1", "GenericCamera:47"}
+TEST_CSCS_2 = {"ATDome", "ScriptQueue:22"}
+CSCS_TO_REMOVE = {"GenericCamera:47", "ATDome", NON_EXISTENT_CSC}
 JOINED_TEST_CSCS = TEST_CSCS_1 | TEST_CSCS_2
 REMAINING_CSCS = JOINED_TEST_CSCS - CSCS_TO_REMOVE
 
@@ -266,28 +266,74 @@ APPROVED_PROCESSED_AUTH_REQUESTS = [
         message_id=0,
         status=RequestStatus.APPROVED.value,
         execution_status=ExecutionStatus.SUCCESSFUL.value,
-        execution_message="The following CSCs were updated correctly: Test:5.",
+        execution_message="The following CSCs were successfully updated: Test:5.",
     ),
     RestMessage.from_auth_request_data(
         artd=TEST_DATA[1],
         message_id=1,
         status=RequestStatus.APPROVED.value,
         execution_status=ExecutionStatus.FAILED.value,
-        execution_message="The following CSCs were updated correctly: Test:5, Test:52. "
-        + "The following CSCs failed to update correctly: Test:999.",
+        execution_message="The following CSCs were successfully updated: Test:5, Test:52. "
+        + "Failed to set authList for one or more CSCs: Test:999.",
     ),
     RestMessage.from_auth_request_data(
         artd=TEST_DATA[2],
         message_id=2,
         status=RequestStatus.APPROVED.value,
         execution_status=ExecutionStatus.SUCCESSFUL.value,
-        execution_message="The following CSCs were updated correctly: Test:5, Test:52.",
+        execution_message="The following CSCs were successfully updated: Test:5, Test:52.",
     ),
     RestMessage.from_auth_request_data(
         artd=TEST_DATA[3],
         message_id=3,
         status=RequestStatus.APPROVED.value,
         execution_status=ExecutionStatus.SUCCESSFUL.value,
-        execution_message="The following CSCs were updated correctly: Test:5, Test:52.",
+        execution_message="The following CSCs were successfully updated: Test:5, Test:52.",
     ),
+]
+
+# A list representing a single pending, unprocessed authorize request for
+# incorrect CSCs or authorized users. For the request with ID 1, the "MTQueue"
+# CSC doesn't exist. For the request with ID 2, the "Test:5" CSC isn't started
+# by the unit test.
+FAULTY_PENDING_AUTH_REQUESTS = [
+    {
+        "id": 1,
+        "resolved_by": "cmd_user",
+        "user": "cmd_user",
+        "cscs_to_change": "MTQueue",
+        "authorized_users": "+test@localhost",
+        "unauthorized_cscs": "",
+        "requested_by": "test@localhost",
+        "requested_at": "2022-09-01T11:10:00.000Z",
+        "duration": None,
+        "message": "testing",
+        "status": "Authorized",
+        "execution_status": "Pending",
+        "execution_message": None,
+        "resolved_at": "2022-09-01T11:15:00.000Z",
+    },
+    {
+        "id": 2,
+        "resolved_by": "cmd_user",
+        "user": "cmd_user",
+        "cscs_to_change": "Test:5",
+        "authorized_users": "test",
+        "unauthorized_cscs": "",
+        "requested_by": "test@localhost",
+        "requested_at": "2022-09-01T11:10:00.000Z",
+        "duration": None,
+        "message": "testing",
+        "status": "Authorized",
+        "execution_status": "Pending",
+        "execution_message": None,
+        "resolved_at": "2022-09-01T11:15:00.000Z",
+    },
+]
+
+# The expected execution messages for the faulty pending auth requests. These
+# execution messages correspond one on one to the FAULTY_PENDING_AUTH_REQUESTS.
+EXP_EXEC_MSGS_FOR_FAULTY_REQS = [
+    "Failed to set authList for one or more CSCs: MTQueue.",
+    "Failed to set authList for one or more CSCs: Test:5.",
 ]
