@@ -21,6 +21,7 @@
 
 import unittest
 
+import pytest
 from lsst.ts import authorize
 
 
@@ -51,6 +52,10 @@ class UtilsTestCase(unittest.TestCase):
                 authorize.check_cscs({f"ESS:{bad_index_char}"})
             with self.assertRaises(ValueError):
                 authorize.check_cscs({f"ESS:1{bad_index_char}"})
+
+        for csc_names in [{"ABC"}, {"ABC:1"}, {"ABC:1", "ABC:2"}]:
+            with pytest.raises(ValueError, match="Unknown CSCs: ABC"):
+                authorize.check_cscs(csc_names)
 
     def test_check_user_hosts(self) -> None:
         good_values = {
