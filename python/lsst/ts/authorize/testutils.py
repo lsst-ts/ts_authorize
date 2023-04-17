@@ -334,6 +334,6 @@ FAULTY_PENDING_AUTH_REQUESTS = [
 # The expected execution messages for the faulty pending auth requests. These
 # execution messages correspond one on one to the FAULTY_PENDING_AUTH_REQUESTS.
 EXP_EXEC_MSGS_FOR_FAULTY_REQS = [
-    "Failed to set authList for one or more CSCs: MTQueue.",
-    "Failed to set authList for one or more CSCs: Test:5.",
+    "No CSCs were successfully updated. Failed to set authList for one or more CSCs: MTQueue.",
+    "No CSCs were successfully updated. Failed to set authList for one or more CSCs: Test:5.",
 ]

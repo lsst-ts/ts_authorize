@@ -151,14 +151,14 @@ def create_failed_error_message(
     success_message = (
         f'The following CSCs were successfully updated: {", ".join(sorted(cscs_succeeded))}.'
         if len(cscs_succeeded) > 0
-        else ""
+        else "No CSCs were successfully updated."
     )
     failed_message = (
         f'Failed to set authList for one or more CSCs: {", ".join(sorted(csc_failed_messages))}.'
         if len(csc_failed_messages) > 0
         else ""
     )
-    space_or_not = " " if success_message and failed_message else ""
+    space_or_not = " " if failed_message else ""
     return success_message + space_or_not + failed_message
 
 
