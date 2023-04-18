@@ -76,7 +76,7 @@ class ExecutionStatus(str, Enum):
 
 
 # TODO DM-38683: Use lsst.ts.xml instead.
-def _get_all_components() -> list[str]:
+def _get_all_components() -> set[str]:
     """Get the name of all components in the system.
 
     Returns
@@ -86,7 +86,7 @@ def _get_all_components() -> list[str]:
     """
     idl_dir = get_idl_dir()
 
-    components: list[str] = {
+    components: set[str] = {
         IDL_FILE_PATTERN_MATCH.match(str(idl_file)).groupdict()["component"]  # type: ignore
         for idl_file in idl_dir.glob("*idl")
     }
@@ -105,14 +105,14 @@ def check_cscs(cscs: collections.abc.Iterable) -> None:
     ValueError
         If at least one value in ``cscs`` is not valid.
     """
-    bad_cscs = set()
-    for csc in cscs:
-        csc_name, csc_index = salobj.name_to_name_index(csc)
-        # TODO DM-38683: Use lsst.ts.xml instead.
-        if not CSC_NAME_INDEX_RE.match(csc) or csc_name not in all_components:
-            bad_cscs.add(csc)
-    if bad_cscs:
-        raise ValueError(f'Invalid CSC[:index]s:  {", ".join(bad_cscs)}')
+    malformed_cscs = {f"{csc}" for csc in cscs if not CSC_NAME_INDEX_RE.match(csc)}
+    if malformed_cscs:
+        raise ValueError(f"Invalid CSC[:index]s:  {', '.join(malformed_cscs)}.")
+    csc_names = {csc.split(":")[0] for csc in cscs}
+    bad_csc_names = csc_names - all_components
+    # TODO DM-38683: Use lsst.ts.xml instead.
+    if bad_csc_names:
+        raise ValueError(f"Unknown CSCs: {', '.join(bad_csc_names)}")
 
 
 def check_user_hosts(user_hosts: collections.abc.Iterable) -> None:
@@ -151,14 +151,14 @@ def create_failed_error_message(
     success_message = (
         f'The following CSCs were successfully updated: {", ".join(sorted(cscs_succeeded))}.'
         if len(cscs_succeeded) > 0
-        else ""
+        else "No CSCs were successfully updated."
     )
     failed_message = (
         f'Failed to set authList for one or more CSCs: {", ".join(sorted(csc_failed_messages))}.'
         if len(csc_failed_messages) > 0
         else ""
     )
-    space_or_not = " " if success_message and failed_message else ""
+    space_or_not = " " if failed_message else ""
     return success_message + space_or_not + failed_message
 
 

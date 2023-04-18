@@ -6,6 +6,17 @@
 Version History
 ###############
 
+v0.6.10
+-------
+
+* Improve error message.
+* Remove for loop.
+
+Requirements:
+
+* ts_salobj 7
+* IDL files for Authorize plus all subsystems to authorize, built with ts_xml 11
+
 v0.6.9
 ------
 
