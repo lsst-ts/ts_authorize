@@ -6,6 +6,16 @@
 Version History
 ###############
 
+v0.6.11
+-------
+
+* Use ts_xml instead of ts_idl for getting a list of all TSSW components.
+
+Requirements:
+
+* ts_salobj 7
+* IDL files for Authorize plus all subsystems to authorize, built with ts_xml 11
+
 v0.6.10
 -------
 
