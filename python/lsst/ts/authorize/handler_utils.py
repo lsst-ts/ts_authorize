@@ -27,8 +27,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any
 
-from lsst.ts import salobj
-from lsst.ts.idl import get_idl_dir
+from lsst.ts import salobj, xml
 
 __all__ = [
     "AuthRequestData",
@@ -45,9 +44,6 @@ RestMessageType = dict[str, int | float | str | dict[str, Any]]
 
 CSC_NAME_INDEX_RE = re.compile(r"^[a-zA-Z][_A-Za-z0-9]*(:\d+)?$")
 USER_HOST_RE = re.compile(r"^[a-zA-Z][-._A-Za-z0-9]*@[a-zA-Z0-9][-._A-Za-z0-9]*$")
-
-# TODO DM-38683: Use lsst.ts.xml instead.
-IDL_FILE_PATTERN_MATCH = re.compile(r"(.*)sal_revCoded_(?P<component>.*).idl")
 
 
 @dataclass
@@ -75,28 +71,6 @@ class ExecutionStatus(str, Enum):
     SUCCESSFUL = "Successful"
 
 
-# TODO DM-38683: Use lsst.ts.xml instead.
-def _get_all_components() -> set[str]:
-    """Get the name of all components in the system.
-
-    Returns
-    -------
-    list[str]
-        Name of all components in the system.
-    """
-    idl_dir = get_idl_dir()
-
-    components: set[str] = {
-        IDL_FILE_PATTERN_MATCH.match(str(idl_file)).groupdict()["component"]  # type: ignore
-        for idl_file in idl_dir.glob("*idl")
-    }
-
-    return components
-
-
-all_components = _get_all_components()
-
-
 def check_cscs(cscs: collections.abc.Iterable) -> None:
     """Check one of more csc name[:index] values.
 
@@ -109,8 +83,7 @@ def check_cscs(cscs: collections.abc.Iterable) -> None:
     if malformed_cscs:
         raise ValueError(f"Invalid CSC[:index]s:  {', '.join(malformed_cscs)}.")
     csc_names = {csc.split(":")[0] for csc in cscs}
-    bad_csc_names = csc_names - all_components
-    # TODO DM-38683: Use lsst.ts.xml instead.
+    bad_csc_names = csc_names - set(xml.subsystems)
     if bad_csc_names:
         raise ValueError(f"Unknown CSCs: {', '.join(bad_csc_names)}")
 
