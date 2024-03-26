@@ -6,6 +6,16 @@
 Version History
 ###############
 
+v0.6.12
+-------
+
+* Update the version of ts-conda-build to 0.4 in the conda recipe.
+
+Requirements:
+
+* ts_salobj 7
+* IDL files for Authorize plus all subsystems to authorize, built with ts_xml 11
+
 v0.6.11
 -------
 
